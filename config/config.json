@@ -1,0 +1,32 @@
+{
+    "network": {
+        "btc": {
+            "mainnetRPC": "https://btc.getblock.io/mainnet",
+            "testnetRPC": "https://btc.getblock.io/testnet",
+            "regtestRPC": "http://localhost:18443",
+            "networkType": "mainnet"
+        }
+    },
+    "api": {
+        "port": 8080,
+        "host": "0.0.0.0",
+        "readTimeout": 30,
+        "writeTimeout": 30
+    },
+    "log": {
+        "level": "info",
+        "outputPath": "./logs",
+        "maxSize": 100,
+        "maxBackups": 3
+    },
+    "security": {
+        "enableHTTPS": false,
+        "certFile": "",
+        "keyFile": ""
+    },
+    "btc": {
+        "defaultFeeRate": 10.0,
+        "confirmations": 6,
+        "addressType": "legacy"
+    }
+}
