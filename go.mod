@@ -1,4 +1,4 @@
-module github.com/yourusername/btcapis
+module btcapis
 
 go 1.21
 
