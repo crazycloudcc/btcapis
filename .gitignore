@@ -58,3 +58,5 @@ coverage.html
 
 # Go module cache
 go.sum
+
+examples/env.json
