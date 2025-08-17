@@ -15,8 +15,8 @@ package btcapis
 import (
 	"context"
 
-	"github.com/yourusername/btcapis/chain"
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/chain"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Client 是btcapis的主要客户端，聚合多个后端服务

@@ -1,4 +1,4 @@
-module github.com/yourusername/btcapis
+module github.com/crazycloudcc/btcapis
 
 go 1.21
 

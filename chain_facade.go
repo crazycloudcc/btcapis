@@ -4,8 +4,8 @@ package btcapis
 import (
 	"context"
 
-	"github.com/yourusername/btcapis/chain"
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/chain"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // chainFacade 提供链上数据查询的功能接口

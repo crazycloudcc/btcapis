@@ -22,7 +22,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/yourusername/btcapis
+    local-prefixes: github.com/crazycloudcc/btcapis
   gocritic:
     enabled-tags:
       - diagnostic
