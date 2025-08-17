@@ -4,7 +4,7 @@ package address
 import (
 	"strings"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // ClassifyAddress 分类地址类型

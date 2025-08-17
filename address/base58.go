@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // ParseBase58 解析Base58地址

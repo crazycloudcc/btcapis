@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/btcapis"
+	"github.com/crazycloudcc/btcapis"
 )
 
 // 测试配置

@@ -4,7 +4,7 @@ package chain
 import (
 	"context"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // ChainReader 定义链上数据读取接口

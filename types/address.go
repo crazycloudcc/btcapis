@@ -16,14 +16,14 @@ const (
 	NetworkMainnet Network = "mainnet"
 	NetworkTestnet Network = "testnet"
 	NetworkSignet  Network = "signet"
-	NetworkRegtest Network = "regtest"
+	// NetworkRegtest Network = "regtest"
 
 	// 地址类型常量
-	AddressTypeP2PKH   AddressType = "p2pkh"
-	AddressTypeP2SH    AddressType = "p2sh"
-	AddressTypeP2WPKH  AddressType = "p2wpkh"
-	AddressTypeP2WSH   AddressType = "p2wsh"
-	AddressTypeP2TR    AddressType = "p2tr"
+	AddressTypeP2PKH   AddressType = "p2pkh"  // Legacy, 1..
+	AddressTypeP2SH    AddressType = "p2sh"   // Legacy + Nested Segwit, 3.. | 包含p2sh-p2wpkh,p2sh-p2wsh
+	AddressTypeP2WPKH  AddressType = "p2wpkh" // Native Segwit, bc1q..
+	AddressTypeP2WSH   AddressType = "p2wsh"  // Native Segwit, bc1q..
+	AddressTypeP2TR    AddressType = "p2tr"   // Taproot, bc1p..
 	AddressTypeUnknown AddressType = "unknown"
 )
 

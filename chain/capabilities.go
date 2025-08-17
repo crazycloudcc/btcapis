@@ -4,7 +4,7 @@ package chain
 import (
 	"context"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // CapabilityDetector 定义能力探测接口

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yourusername/btcapis/internal/httpx"
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/httpx"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Client mempool.space REST客户端

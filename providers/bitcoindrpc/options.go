@@ -4,7 +4,7 @@ package bitcoindrpc
 import (
 	"time"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Option 定义配置选项函数

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yourusername/btcapis/internal/httpx"
-	"github.com/yourusername/btcapis/internal/jsonrpc"
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/httpx"
+	"github.com/crazycloudcc/btcapis/internal/jsonrpc"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Client Bitcoin Core RPC客户端

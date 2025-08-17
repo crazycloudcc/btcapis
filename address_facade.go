@@ -2,7 +2,7 @@
 package btcapis
 
 import (
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // addressFacade 提供地址相关的功能接口

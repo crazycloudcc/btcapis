@@ -35,8 +35,8 @@ package yourbackend
 
 import (
     "context"
-    "github.com/yourusername/btcapis/chain"
-    "github.com/yourusername/btcapis/types"
+    "github.com/crazycloudcc/btcapis/chain"
+    "github.com/crazycloudcc/btcapis/types"
 )
 
 type Client struct {
@@ -98,7 +98,7 @@ type BlockResponse struct {
 package yourbackend
 
 import (
-    "github.com/yourusername/btcapis/types"
+    "github.com/crazycloudcc/btcapis/types"
 )
 
 type Mapper struct{}
@@ -259,7 +259,7 @@ func (c *Client) supportsMempoolView() bool {
 ### 错误包装
 
 ```go
-import "github.com/yourusername/btcapis/errors"
+import "github.com/crazycloudcc/btcapis/errors"
 
 func (c *Client) GetRawTransaction(ctx context.Context, txid string) ([]byte, error) {
     resp, err := c.apiCall(ctx, "get_transaction", map[string]interface{}{

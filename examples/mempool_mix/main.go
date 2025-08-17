@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/yourusername/btcapis"
+	"github.com/crazycloudcc/btcapis"
 )
 
 func main() {

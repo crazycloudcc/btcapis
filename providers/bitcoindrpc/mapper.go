@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Mapper Bitcoin Core RPC数据映射器

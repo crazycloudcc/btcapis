@@ -12,7 +12,7 @@
 ## 快速开始
 
 ```go
-import "github.com/yourusername/btcapis"
+import "github.com/crazycloudcc/btcapis"
 
 func main() {
     client := btcapis.New(

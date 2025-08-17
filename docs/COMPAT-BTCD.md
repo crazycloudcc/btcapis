@@ -219,7 +219,7 @@ func processTx(msgTx *wire.MsgTx) {
 }
 
 // 现在：使用btcapis类型
-import "github.com/yourusername/btcapis/types"
+import "github.com/crazycloudcc/btcapis/types"
 
 func processTx(tx *types.Transaction) {
     // 处理交易

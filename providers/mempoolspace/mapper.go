@@ -4,7 +4,7 @@ package mempoolspace
 import (
 	"time"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // Mapper mempool.space数据映射器

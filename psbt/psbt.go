@@ -4,7 +4,7 @@ package psbt
 import (
 	"fmt"
 
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // CreatePSBT 创建新的PSBT
