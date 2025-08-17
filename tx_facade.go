@@ -2,7 +2,7 @@
 package btcapis
 
 import (
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // txFacade 提供交易相关的功能接口

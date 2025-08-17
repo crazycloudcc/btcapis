@@ -2,7 +2,7 @@
 package btcapis
 
 import (
-	"github.com/yourusername/btcapis/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // scriptFacade 提供脚本相关的功能接口
