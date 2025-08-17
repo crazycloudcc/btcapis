@@ -18,6 +18,7 @@ func AnalyzeInput(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
 	// P2TR？
 	if t.Vout != nil { /* 无需依赖输出推断，这里只看 witness 形态 */
 	}
+
 	if stack, scr, cb, ok := script.ExtractTapScriptPath(in.Witness); ok {
 		ops, asm, err := script.DisasmScript(scr)
 		if err != nil {
@@ -31,14 +32,23 @@ func AnalyzeInput(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
 		for i := range stack {
 			ss[i] = hex.EncodeToString(stack[i])
 		}
-		return &types.TapscriptInfo{
+
+		info := &types.TapscriptInfo{
 			Path:      "p2tr-script",
 			ScriptHex: hex.EncodeToString(scr),
 			ASM:       asm,
 			Ops:       ops,
 			Control:   ctrl,
 			StackHex:  ss,
-		}, nil
+		}
+
+		if env, found, err := script.ParseOrdinalEnvelope(scr); err != nil {
+			// 语法损坏：可选择返回错误，或记录为空。这里保守返回错误，便于排查。
+			return nil, err
+		} else if found {
+			info.Ord = env
+		}
+		return info, nil
 	}
 
 	// P2TR key-path: witness 通常只有一个 64/65B schnorr sig（+可选 annex）
