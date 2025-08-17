@@ -49,6 +49,22 @@ func main() {
 
 	out, _ := json.MarshalIndent(info, "", "  ")
 	fmt.Println(string(out))
+	fmt.Println("--------------------------------")
+
+	balance, err := client.GetAddressBalance(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	if err != nil {
+		log.Fatalf("GetAddressBalance: %v", err)
+	}
+	fmt.Printf("balance: %s\n", balance)
+	fmt.Println("--------------------------------")
+
+	utxos, err := client.GetAddressUTXOs(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	if err != nil {
+		log.Fatalf("GetAddressUTXOs: %v", err)
+	}
+	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	fmt.Println(string(outUtxos))
+	fmt.Println("--------------------------------")
 
 	// ops, asm, _ := btcapis.Tx.DisasmScriptPubKey(tx, 0)
 	// fmt.Printf("ops: %+v\n", ops)
