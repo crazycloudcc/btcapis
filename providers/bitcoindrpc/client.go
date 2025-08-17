@@ -2,112 +2,220 @@
 package bitcoindrpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
-	"github.com/crazycloudcc/btcapis/internal/httpx"
-	"github.com/crazycloudcc/btcapis/internal/jsonrpc"
+	"github.com/crazycloudcc/btcapis/chain"
+	txpkg "github.com/crazycloudcc/btcapis/tx"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// Client Bitcoin Core RPC客户端
 type Client struct {
-	httpClient   *httpx.Client
-	rpcClient    *jsonrpc.Client
-	config       *Config
-	capabilities *types.Capabilities
+	url    string
+	user   string
+	pass   string
+	http   *http.Client
+	idSeed int
 }
 
-// Config Bitcoin Core RPC配置
-type Config struct {
-	URL      string        `json:"url"`
-	Username string        `json:"username"`
-	Password string        `json:"password"`
-	Timeout  time.Duration `json:"timeout"`
-	Network  types.Network `json:"network"`
+type Option func(*Client)
 
-	// 高级配置
-	MaxRetries int           `json:"max_retries"`
-	RetryDelay time.Duration `json:"retry_delay"`
-	RateLimit  int           `json:"rate_limit"`
-	BatchSize  int           `json:"batch_size"`
+func WithHTTPClient(h *http.Client) Option {
+	return func(c *Client) { c.http = h }
 }
 
-// NewClient 创建新的Bitcoin Core RPC客户端
-func NewClient(config *Config) (*Client, error) {
-	if config == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+func New(url, user, pass string, opts ...Option) *Client {
+	c := &Client{
+		url:  url,
+		user: user,
+		pass: pass,
+		http: &http.Client{Timeout: 8 * time.Second},
+	}
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
+// ===== chain.Backend 接口实现（最小可用） =====
+
+func (c *Client) Capabilities(ctx context.Context) (chain.Capabilities, error) {
+	// 简化：默认具备 mempool/fee 能力；网络未知时可不填
+	return chain.Capabilities{
+		HasMempool:     true,
+		HasFeeEstimate: true,
+		Network:        types.Mainnet, // 如需准确，后续可调用 getblockchaininfo 推断
+	}, nil
+}
+
+// —— 交易相关
+func (c *Client) GetRawTransaction(ctx context.Context, txid string) ([]byte, error) {
+	var hexStr string
+	if err := c.rpcCall(ctx, "getrawtransaction", []any{txid, false}, &hexStr); err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(hexStr)
+}
+
+func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
+	raw, err := c.GetRawTransaction(ctx, txid)
+	if err != nil {
+		return nil, err
+	}
+	return txpkg.DecodeRawTx(raw)
+}
+
+func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
+	hexRaw := hex.EncodeToString(rawtx)
+	var txid string
+	if err := c.rpcCall(ctx, "sendrawtransaction", []any{hexRaw}, &txid); err != nil {
+		return "", err
+	}
+	return txid, nil
+}
+
+func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, error) {
+	// estimatesmartfee 返回 BTC/kB（可能为 null）
+	var resp struct {
+		Feerate *float64 `json:"feerate"` // BTC/KB
+		Errors  []string `json:"errors"`
+	}
+	if err := c.rpcCall(ctx, "estimatesmartfee", []any{targetBlocks}, &resp); err != nil {
+		return 0, err
+	}
+	if resp.Feerate == nil {
+		return 0, fmt.Errorf("bitcoind: estimatesmartfee no data")
+	}
+	// BTC/kB -> sats/vB
+	satsPerVB := (*resp.Feerate) * 1e8 / 1000.0
+	return satsPerVB, nil
+}
+
+// —— 其它 ChainReader 方法（先占位，避免接口不满足导致编译失败）
+func (c *Client) GetBlockHash(ctx context.Context, height int64) (string, error) {
+	var hash string
+	if err := c.rpcCall(ctx, "getblockhash", []any{height}, &hash); err != nil {
+		return "", err
+	}
+	return hash, nil
+}
+
+func (c *Client) GetBlockHeader(ctx context.Context, hash string) ([]byte, error) {
+	var hexStr string
+	if err := c.rpcCall(ctx, "getblockheader", []any{hash, false}, &hexStr); err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(hexStr)
+}
+
+func (c *Client) GetBlock(ctx context.Context, hash string) ([]byte, error) {
+	var hexStr string
+	if err := c.rpcCall(ctx, "getblock", []any{hash, 0}, &hexStr); err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(hexStr)
+}
+
+func (c *Client) GetUTXO(ctx context.Context, op types.OutPoint) (*types.UTXO, error) {
+	// 用 gettxout 查询未花费输出
+	var dto struct {
+		Value        float64 `json:"value"` // BTC
+		ScriptPubKey struct {
+			Hex string `json:"hex"`
+		} `json:"scriptPubKey"`
+	}
+	if err := c.rpcCall(ctx, "gettxout", []any{op.Hash, op.N, true}, &dto); err != nil {
+		return nil, err
+	}
+	if dto.ScriptPubKey.Hex == "" {
+		return nil, fmt.Errorf("bitcoind: utxo not found")
+	}
+	spk, _ := hex.DecodeString(dto.ScriptPubKey.Hex)
+	return &types.UTXO{
+		OutPoint:     op,
+		Value:        int64(dto.Value * 1e8),
+		ScriptPubKey: spk,
+	}, nil
+}
+
+func (c *Client) GetRawMempool(ctx context.Context) ([]string, error) {
+	var ids []string
+	if err := c.rpcCall(ctx, "getrawmempool", []any{}, &ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// TxInMempool 实现：简单地遍历 getrawmempool 结果
+func (c *Client) TxInMempool(ctx context.Context, txid string) (bool, error) {
+	ids, err := c.GetRawMempool(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, id := range ids {
+		if id == txid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// ===== 内部 JSON-RPC =====
+
+func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
+	c.idSeed++
+	req := struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+		Params  []any  `json:"params"`
+	}{
+		JSONRPC: "2.0",
+		ID:      c.idSeed,
+		Method:  method,
+		Params:  params,
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(&req); err != nil {
+		return err
 	}
 
-	// 创建HTTP客户端
-	httpClient := httpx.NewClient(
-		httpx.WithTimeout(config.Timeout),
-		httpx.WithRetry(config.MaxRetries, config.RetryDelay),
-		httpx.WithRateLimit(config.RateLimit),
-	)
-
-	// 创建JSON-RPC客户端
-	rpcClient := jsonrpc.NewClient(httpClient, config.URL)
-
-	client := &Client{
-		httpClient: httpClient,
-		rpcClient:  rpcClient,
-		config:     config,
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.user != "" {
+		httpReq.SetBasicAuth(c.user, c.pass)
 	}
 
-	// 设置认证
-	client.rpcClient.SetAuth(config.Username, config.Password)
-
-	// 探测能力
-	if err := client.detectCapabilities(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to detect capabilities: %w", err)
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return err
 	}
+	defer resp.Body.Close()
 
-	return client, nil
-}
-
-// detectCapabilities 探测后端能力
-func (c *Client) detectCapabilities(ctx context.Context) error {
-	// TODO: 实现能力探测
-	c.capabilities = &types.Capabilities{
-		HasChainReader:        true,
-		HasBroadcaster:        true,
-		HasFeeEstimator:       true,
-		HasMempoolView:        true,
-		Network:               c.config.Network,
-		SupportsSegWit:        true,
-		SupportsTaproot:       true,
-		MaxConcurrentRequests: 10,
-		RequestTimeout:        int(c.config.Timeout.Seconds()),
-		RateLimit:             100,
-		ProvidesConfirmedData: true,
-		ProvidesMempoolData:   true,
-		DataFreshness:         0,
+	var rpcResp struct {
+		Result json.RawMessage `json:"result"`
+		Error  *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		ID int `json:"id"`
 	}
-	return nil
-}
-
-// Name 获取后端名称
-func (c *Client) Name() string {
-	return "bitcoind-rpc"
-}
-
-// IsHealthy 检查后端健康状态
-func (c *Client) IsHealthy(ctx context.Context) bool {
-	// TODO: 实现健康检查
-	return true
-}
-
-// Capabilities 获取后端能力
-func (c *Client) Capabilities(ctx context.Context) (*types.Capabilities, error) {
-	return c.capabilities, nil
-}
-
-// Close 关闭客户端
-func (c *Client) Close() error {
-	if c.httpClient != nil {
-		return c.httpClient.Close()
+	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+		return err
+	}
+	if rpcResp.Error != nil {
+		return fmt.Errorf("bitcoind rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+	}
+	if out != nil {
+		return json.Unmarshal(rpcResp.Result, out)
 	}
 	return nil
 }

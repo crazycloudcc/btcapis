@@ -3,98 +3,154 @@ package mempoolspace
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
-	"github.com/crazycloudcc/btcapis/internal/httpx"
+	"github.com/crazycloudcc/btcapis/chain"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// Client mempool.space REST客户端
 type Client struct {
-	httpClient   *httpx.Client
-	baseURL      string
-	config       *Config
-	capabilities *types.Capabilities
+	base *url.URL
+	http *http.Client
 }
 
-// Config mempool.space配置
-type Config struct {
-	BaseURL    string        `json:"base_url"`
-	Timeout    time.Duration `json:"timeout"`
-	MaxRetries int           `json:"max_retries"`
-	RateLimit  int           `json:"rate_limit"`
-	Network    types.Network `json:"network"`
+type Option func(*Client)
+
+func WithHTTPClient(h *http.Client) Option {
+	return func(c *Client) { c.http = h }
 }
 
-// NewClient 创建新的mempool.space客户端
-func NewClient(config *Config) (*Client, error) {
-	if config == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+func New(baseURL string, opts ...Option) *Client {
+	u, _ := url.Parse(baseURL)
+	c := &Client{
+		base: u,
+		http: &http.Client{Timeout: 8 * time.Second},
 	}
-
-	// 创建HTTP客户端
-	httpClient := httpx.NewClient(
-		httpx.WithTimeout(config.Timeout),
-		httpx.WithRetry(config.MaxRetries, 1*time.Second),
-		httpx.WithRateLimit(config.RateLimit),
-	)
-
-	client := &Client{
-		httpClient: httpClient,
-		baseURL:    config.BaseURL,
-		config:     config,
+	for _, o := range opts {
+		o(c)
 	}
+	return c
+}
 
-	// 探测能力
-	if err := client.detectCapabilities(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to detect capabilities: %w", err)
+func (c *Client) Capabilities(ctx context.Context) (chain.Capabilities, error) {
+	return chain.Capabilities{
+		HasMempool:     true,
+		HasFeeEstimate: false,         // 如需可接 /api/v1/fees/recommended
+		Network:        types.Mainnet, // 简化：默认主网
+	}, nil
+}
+
+func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
+	u := *c.base
+	u.Path = path.Join(u.Path, "/api/tx/", txid)
+	var dto TxDTO
+	if err := c.getJSON(ctx, u.String(), &dto); err != nil {
+		return nil, err
 	}
-
-	return client, nil
+	return mapTxDTO(dto), nil
 }
 
-// detectCapabilities 探测后端能力
-func (c *Client) detectCapabilities(ctx context.Context) error {
-	// TODO: 实现能力探测
-	c.capabilities = &types.Capabilities{
-		HasChainReader:        true,
-		HasBroadcaster:        false, // mempool.space不支持广播
-		HasFeeEstimator:       true,
-		HasMempoolView:        true,
-		Network:               c.config.Network,
-		SupportsSegWit:        true,
-		SupportsTaproot:       true,
-		MaxConcurrentRequests: 20,
-		RequestTimeout:        int(c.config.Timeout.Seconds()),
-		RateLimit:             200,
-		ProvidesConfirmedData: true,
-		ProvidesMempoolData:   true,
-		DataFreshness:         10, // 10秒延迟
+func (c *Client) GetRawTransaction(ctx context.Context, txid string) ([]byte, error) {
+	u := *c.base
+	u.Path = path.Join(u.Path, "/api/tx/", txid, "hex")
+	b, err := c.getBytes(ctx, u.String())
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return hex.DecodeString(strings.TrimSpace(string(b)))
 }
 
-// Name 获取后端名称
-func (c *Client) Name() string {
-	return "mempool-space"
-}
-
-// IsHealthy 检查后端健康状态
-func (c *Client) IsHealthy(ctx context.Context) bool {
-	// TODO: 实现健康检查
-	return true
-}
-
-// Capabilities 获取后端能力
-func (c *Client) Capabilities(ctx context.Context) (*types.Capabilities, error) {
-	return c.capabilities, nil
-}
-
-// Close 关闭客户端
-func (c *Client) Close() error {
-	if c.httpClient != nil {
-		return c.httpClient.Close()
+func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
+	// mempool.space 支持 POST /api/tx，body 为 hex
+	u := *c.base
+	u.Path = path.Join(u.Path, "/api/tx")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(hex.EncodeToString(rawtx)))
+	if err != nil {
+		return "", err
 	}
-	return nil
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("mempool POST /api/tx status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	txid, _ := io.ReadAll(resp.Body)
+	return strings.TrimSpace(string(txid)), nil
+}
+
+func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, error) {
+	// 如需可实现 /api/v1/fees/recommended；此处先不实现
+	return 0, fmt.Errorf("mempool: fee estimate not implemented")
+}
+
+// 其它 ChainReader 方法（此 provider 非权威链数据，先不实现）
+func (c *Client) GetBlockHash(ctx context.Context, height int64) (string, error) {
+	return "", fmt.Errorf("mempool: not implemented")
+}
+func (c *Client) GetBlockHeader(ctx context.Context, hash string) ([]byte, error) {
+	return nil, fmt.Errorf("mempool: not implemented")
+}
+func (c *Client) GetBlock(ctx context.Context, hash string) ([]byte, error) {
+	return nil, fmt.Errorf("mempool: not implemented")
+}
+func (c *Client) GetUTXO(ctx context.Context, op types.OutPoint) (*types.UTXO, error) {
+	return nil, fmt.Errorf("mempool: not implemented")
+}
+
+// GetRawMempool：mempool.space 没有公开“全量 txids 列表”的稳定接口，这里先占位返回未实现。
+// 需要时可以后续改成分页/条件查询。
+func (c *Client) GetRawMempool(ctx context.Context) ([]string, error) {
+	return nil, fmt.Errorf("mempool: GetRawMempool not implemented")
+}
+
+func (c *Client) TxInMempool(ctx context.Context, txid string) (bool, error) {
+	// 若要实现，可调用 /api/tx/{txid}：存在且未确认则视为在 mempool 中。
+	return false, fmt.Errorf("mempool: TxInMempool not implemented")
+}
+
+// ===== HTTP helpers =====
+func (c *Client) getJSON(ctx context.Context, url string, v any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("GET %s status=%d body=%s", url, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+func (c *Client) getBytes(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GET %s status=%d body=%s", url, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return io.ReadAll(resp.Body)
 }

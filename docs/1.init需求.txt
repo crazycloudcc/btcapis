@@ -1,3 +1,8 @@
+明白。你要做的是库优先（library-first）、根包一处导入可用，同时要兼顾：
+
+依赖全节点（Bitcoin Core JSON-RPC）；2) 可选封装 mempool 等第三方 REST；3) 适度使用 btcd 生态（wire/txscript/chainhash/chaincfg 等）。
+下面是在你上一版基础上，**引入“后端抽象 + 适配器（providers）+ 传输层与可靠性治理”**后的优化目录与设计要点。
+
 推荐目录结构（含全节点 RPC / mempool / btcd 适配）
 btcapis/
 ├─ go.mod
