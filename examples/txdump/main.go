@@ -30,12 +30,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("GetRawTransaction: %v", err)
 	}
-	fmt.Printf("raw: %x\n", raw)
+	fmt.Printf("元数据 raw: %x\n", raw)
+	fmt.Println("--------------------------------")
 
 	tx, err := client.GetTransaction(ctx, cfg.TxID)
 	if err != nil {
 		log.Fatalf("GetTransaction: %v", err)
 	}
+	outTx, _ := json.MarshalIndent(tx, "", "  ")
+	fmt.Println(string(outTx))
+	fmt.Println("--------------------------------")
 
 	// 解析输入0
 	info, err := btcapis.Tx.AnalyzeInput(tx, 0)

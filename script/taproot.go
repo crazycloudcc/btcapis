@@ -7,17 +7,14 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// IsTapScriptPathWitness: 简单判断 witness 最后一项是否是 control block
+// 严格：必须能成功解析 control block（长度规则 + 头字节 leaf version 合法）
 func IsTapScriptPathWitness(w [][]byte) bool {
 	if len(w) < 2 {
 		return false
 	}
 	cb := w[len(w)-1]
-	if len(cb) < 33 || (len(cb)-33)%32 != 0 {
-		return false
-	}
-	// header: arbitrary; leaf version must be even; we don't strictly validate here
-	return true
+	_, err := ParseControlBlock(cb)
+	return err == nil
 }
 
 func ParseControlBlock(cb []byte) (types.TapControlBlock, error) {

@@ -15,62 +15,52 @@ func AnalyzeInput(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
 	}
 	in := t.Vin[idx]
 
-	// P2TR？
-	if t.Vout != nil { /* 无需依赖输出推断，这里只看 witness 形态 */
-	}
-
+	// 1) 尝试识别 Taproot 脚本路径
 	if stack, scr, cb, ok := script.ExtractTapScriptPath(in.Witness); ok {
 		ops, asm, err := script.DisasmScript(scr)
-		if err != nil {
-			return nil, err
-		}
-		ctrl, err := script.ParseControlBlock(cb)
-		if err != nil {
-			return nil, err
-		}
-		ss := make([]string, len(stack))
-		for i := range stack {
-			ss[i] = hex.EncodeToString(stack[i])
-		}
+		if err == nil {
+			ctrl, err2 := script.ParseControlBlock(cb)
+			if err2 != nil {
+				// 极少数场景：长度过关但语义不对——当作非 taproot
+			} else {
+				ss := make([]string, len(stack))
+				for i := range stack {
+					ss[i] = hex.EncodeToString(stack[i])
+				}
 
-		info := &types.TapscriptInfo{
-			Path:      "p2tr-script",
-			ScriptHex: hex.EncodeToString(scr),
-			ASM:       asm,
-			Ops:       ops,
-			Control:   ctrl,
-			StackHex:  ss,
+				info := &types.TapscriptInfo{
+					Path:      "p2tr-script",
+					ScriptHex: hex.EncodeToString(scr),
+					ASM:       asm,
+					Ops:       ops,
+					Control:   ctrl,
+					StackHex:  ss,
+				}
+				// Ordinals TLV（宽容：解析失败不报错，仅不填 Ord）
+				if env, found, err3 := script.ParseOrdinalEnvelope(scr); found && err3 == nil {
+					info.Ord = env
+				}
+				return info, nil
+			}
 		}
-
-		if env, found, err := script.ParseOrdinalEnvelope(scr); err != nil {
-			// 语法损坏：可选择返回错误，或记录为空。这里保守返回错误，便于排查。
-			return nil, err
-		} else if found {
-			info.Ord = env
-		}
-		return info, nil
+		// 反汇编失败/控制块语义失败：退回到非 Taproot 流程
 	}
 
-	// P2TR key-path: witness 通常只有一个 64/65B schnorr sig（+可选 annex）
-	if len(in.Witness) >= 1 && len(in.Witness[len(in.Witness)-1]) == 64 || len(in.Witness[len(in.Witness)-1]) == 65 {
-		// 简化返回：没有脚本与控制块
-		ss := make([]string, len(in.Witness))
-		for i := range in.Witness {
-			ss[i] = hex.EncodeToString(in.Witness[i])
-		}
+	// 2) 非 Taproot：尝试识别 P2WPKH（witness=[sig,pubkey33]）
+	if len(in.Witness) == 2 && len(in.Witness[1]) == 33 {
+		ss := make([]string, 2)
+		ss[0] = hex.EncodeToString(in.Witness[0]) // sig
+		ss[1] = hex.EncodeToString(in.Witness[1]) // pubkey
 		return &types.TapscriptInfo{
-			Path:     "p2tr-key",
+			Path:     "p2wpkh", // 标注路径类型，字段仍用同一结构返回
 			StackHex: ss,
 		}, nil
 	}
 
-	// P2WPKH/P2WSH 等（可按需扩展）
+	// 3) 其他（P2WSH / P2SH-P2WPKH / 未识别）
 	ss := make([]string, len(in.Witness))
 	for i := range in.Witness {
 		ss[i] = hex.EncodeToString(in.Witness[i])
 	}
-	return &types.TapscriptInfo{
-		Path:     "unknown",
-		StackHex: ss,
-	}, nil
+	return &types.TapscriptInfo{Path: "unknown", StackHex: ss}, nil
 }
