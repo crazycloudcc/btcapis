@@ -20,3 +20,15 @@ type AddressInfo struct {
 	Address      string   // 规范化地址（如果能解析出来）
 	Tags         []string // 可选：额外标记
 }
+
+// AddressScriptInfo 结构体：存储地址解析后的脚本信息
+// 包含脚本类型、各种哈希值、见证版本等关键信息
+type AddressScriptInfo struct {
+	ScriptType        string // 脚本类型：P2PKH / P2SH / P2WPKH / P2WSH / P2TR
+	PubKeyHash        []byte // 公钥哈希：20字节（P2PKH）或32字节（P2TR）
+	RedeemScriptHash  []byte // 赎回脚本哈希：20字节（P2SH）
+	WitnessScriptHash []byte // 见证脚本哈希：20字节（P2WPKH）或32字节（P2WSH）
+	WitnessVersion    int    // 见证版本：0（SegWit v0）、1（Taproot）、-1（非SegWit）
+	WitnessLen        int    // 见证数据长度：20字节或32字节
+	TaprootKey        []byte // Taproot调整后的公钥：32字节
+}
