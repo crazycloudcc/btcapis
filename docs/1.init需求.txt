@@ -1,0 +1,316 @@
+推荐目录结构（含全节点 RPC / mempool / btcd 适配）
+btcapis/
+├─ go.mod
+├─ LICENSE
+├─ README.md
+├─ CHANGELOG.md
+├─ CONTRIBUTING.md
+├─ .golangci.yml
+├─ Makefile
+├─ tools.go
+│
+├─ btcapis.go                 # 根包门面(facade)：模块对象、核心类型别名（极少量）
+├─ address_facade.go
+├─ script_facade.go
+├─ tx_facade.go
+├─ psbt_facade.go
+├─ chain_facade.go            # Client 聚合、后端路由/降级/并发查询
+├─ errors.go
+│
+├─ types/                     # 跨模块共享的轻量类型（尽量稳定/无循环依赖）
+│  ├─ address.go
+│  ├─ tx.go
+│  ├─ fee.go
+│  ├─ mempool.go
+│  └─ network.go
+│
+├─ address/                   # 地址编解码与分类（内部实现，根包仅暴露门面）
+│  ├─ bech32.go
+│  ├─ base58.go
+│  ├─ classify.go
+│  ├─ scriptpubkey.go
+│  └─ testdata/
+│
+├─ script/                    # 脚本构建/反编译/分类（含 Taproot、witness）
+│  ├─ builder.go
+│  ├─ decompile.go
+│  ├─ classify.go
+│  ├─ taproot.go
+│  └─ opcodes.go
+│
+├─ tx/                        # 交易序列化/解析/签名哈希（可基于 btcd/txscript）
+│  ├─ tx.go
+│  ├─ sighash.go
+│  └─ varint.go
+│
+├─ psbt/                      # BIP174 工具
+│  ├─ psbt.go
+│  ├─ finalize.go
+│  └─ roles.go
+│
+├─ chain/                     # “端口（ports）”：后端接口面向根包；实现放 providers
+│  ├─ backend.go              # 统一接口：读链、广播、手续费、UTXO、区块、mempool 视图
+│  ├─ capabilities.go         # 能力探测/特性位（是否支持rawmempool、feeEstimates等）
+│  ├─ router.go               # 多后端聚合/故障转移/负载策略（供根包 Client 使用）
+│  └─ errors.go
+│
+├─ providers/                 # “适配器（adapters）”：对接具体后端/服务
+│  ├─ bitcoindrpc/            # Bitcoin Core JSON-RPC（HTTP POST）
+│  │  ├─ client.go
+│  │  ├─ methods.go           # getrawtransaction/estimatesmartfee/... 封装
+│  │  ├─ mapper.go            # RPC返回到 types.* 的数据映射
+│  │  └─ options.go           # 连接参数、认证、超时、代理
+│  │
+│  ├─ electrum/               # 可选：Electrum TCP 客户端
+│  │  └─ client.go
+│  │
+│  ├─ mempoolspace/           # 可选：mempool.space REST API 封装
+│  │  ├─ client.go
+│  │  ├─ schema.go            # 第三方响应定义
+│  │  └─ mapper.go
+│  │
+│  └─ blockstream/            # 可选：Blockstream REST（如需）
+│     └─ client.go
+│
+├─ internal/                  # 仅库内可见的基础设施
+│  ├─ httpx/                  # *http.Client 构建、UA、重试、速率限制、超时、代理
+│  │  ├─ client.go
+│  │  ├─ retry.go             # 指数退避（可用 x/time/rate + 自研 backoff）
+│  │  ├─ limiter.go           # 令牌桶限流
+│  │  └─ middleware.go        # 请求中间件（日志hook/traceheader）
+│  ├─ jsonrpc/                # 轻量 JSON-RPC 2.0 工具（统一编码/错误解包）
+│  ├─ cache/                  # 可选：只读缓存（内存L1），避免频繁拉取静态数据
+│  ├─ trace/                  # 轻量埋点接口（避免强依赖 OTel；可通过 build tag 启用）
+│  ├─ bytespool/
+│  └─ assert/
+│
+├─ docs/
+│  ├─ ARCHITECTURE.md         # 端口/适配器/门面 关系、线程安全、错误模型
+│  ├─ PROVIDERS.md            # 新后端接入约定（mapper/能力探测/限流/重试）
+│  └─ COMPAT-BTCD.md          # btcd 生态使用约定（不强耦合类型）
+│
+├─ examples/
+│  ├─ basic/                  # 仅根包 import 的最小示例
+│  │  └─ main.go
+│  ├─ bitcoind_fee/
+│  │  └─ main.go
+│  └─ mempool_mix/
+│     └─ main.go
+│
+├─ test/
+│  ├─ integration_test.go     # 需设置 BITCOIND_URL/USER/PASS / MEMPOOL_BASE_URL 等
+│  └─ golden/                 # 金样本
+│
+└─ x/                          # 实验性 API（不保证稳定）
+   └─ tapleaf/                # 例如：复杂 TapLeaf 构建器
+
+
+要点：
+
+chain/ 只定义接口与路由策略；所有实现均在 providers/。
+
+传输与可靠性（HTTP 客户端、重试、限流、超时、代理、JSON-RPC 编解码）统一放 internal/httpx、internal/jsonrpc，避免各 provider 重复实现。
+
+第三方 REST（mempool、blockstream）与 Core RPC 严格分层：schema.go 绑定第三方原始返回，mapper.go 仅在 provider 内把外部结构映射到 types/* 的内部稳定模型，根包只接触稳定模型，减少破窗效应。
+
+与 btcd 的协作：推荐使用但不强耦合。在 types/* 做轻量别名或转换函数（必要时），避免把 btcd 类型直接扩散到公共 API（迁移成本会很高）。可在 docs/COMPAT-BTCD.md 说明互操作策略。
+
+接口分层（Ports）与能力探测
+
+chain/backend.go（示例，按能力拆接口，便于最小适配与组合）：
+
+package chain
+
+import (
+    "context"
+    "github.com/xx/btcapis/types"
+)
+
+type ChainReader interface {
+    GetRawTransaction(ctx context.Context, txid string) ([]byte, error)
+    GetBlockHash(ctx context.Context, height int64) (string, error)
+    GetBlockHeader(ctx context.Context, hash string) ([]byte, error)
+    GetBlock(ctx context.Context, hash string) ([]byte, error)
+    GetUTXO(ctx context.Context, outpoint types.OutPoint) (*types.UTXO, error)
+}
+
+type Broadcaster interface {
+    Broadcast(ctx context.Context, rawtx []byte) (txid string, err error)
+}
+
+type FeeEstimator interface {
+    EstimateFeeRate(ctx context.Context, targetBlocks int) (satsPerVByte float64, err error)
+}
+
+type MempoolView interface {
+    GetRawMempool(ctx context.Context) ([]string, error) // txids
+    TxInMempool(ctx context.Context, txid string) (bool, error)
+}
+
+type Backend interface {
+    ChainReader
+    Broadcaster
+    FeeEstimator
+    // MempoolView 可选：通过 Capabilities 判断
+    Capabilities(ctx context.Context) (Capabilities, error)
+}
+
+type Capabilities struct {
+    HasMempool     bool
+    HasFeeEstimate bool
+    Network        types.Network // mainnet/testnet/signet/regtest
+}
+
+
+建议：Capabilities() 运行时返回后端可用特性；根包 Client 通过 chain/router.go 的策略选择首选后端与降级路径（例如：费率→Core 首选，失败再走 mempool.space）。
+
+根包 Client：聚合多后端、降级与并发查询
+
+chain_facade.go（要点示例）：
+
+type Client struct {
+    router *chain.Router // 维护后端列表与策略
+}
+
+type Option func(*Client)
+
+func WithBitcoindRPC(url, user, pass string, o ...providers.BitcoindOption) Option
+func WithMempoolSpace(baseURL string, o ...providers.MempoolOption) Option
+func WithElectrum(addr string, o ...providers.ElectrumOption) Option
+
+func New(opts ...Option) *Client { ... }
+
+// 例：带降级与并发竞速
+func (c *Client) EstimateFeeRate(ctx context.Context, target int) (float64, error) {
+    // 先尝试支持 FeeEstimator 的首选后端（如 bitcoind estimatesmartfee），
+    // 超时/错误则并发竞速 mempoolspace/其他，取最快成功者。
+    return c.router.EstimateFeeRate(ctx, target)
+}
+
+
+策略（chain/router.go）：
+
+首选：Bitcoin Core RPC（权威/一致性）；
+
+降级：mempool.space（缺口补齐）→ Electrum；
+
+并发：对纯查询类接口可“并发竞速 + 选最快成功”，对写操作（广播）严格串行＋幂等检查。
+
+支持超时分层（短时限试首选、超时后再放宽到次级）。
+
+传输层与可靠性治理
+
+internal/httpx：
+
+统一 *http.Client 构造（超时、连接池、代理、TLS、重试策略、速率限制、UA、可注入日志hook）
+
+重试只针对幂等读且满足可重试状态码；指数退避 + 抖动；禁止对写操作默认重试（广播类仅在明确安全时进行相同 rawtx 的重试）。
+
+internal/jsonrpc：
+
+编解码与错误解包（JSON-RPC 2.0 标准/bitcoind 兼容）；统一 id 与 batch 支持。
+
+internal/cache（可选）：
+
+对静态/半静态数据（如 getblockhash(height)）做短缓存；对 mempool/fee 等波动数据不缓存或短 TTL。
+
+与 btcd 生态的边界
+
+推荐使用：btcsuite/btcd/{wire,txscript,chaincfg/chainhash} 做编码/脚本工具；
+
+避免导出 btcd 具体类型到公共 API。做法：
+
+在 types/tx.go 定义自己的 Tx, TxIn, TxOut、OutPoint；
+
+在 tx/ 内部提供 FromBtcdTx(*wire.MsgTx) *types.Tx / ToBtcdTx(*types.Tx) *wire.MsgTx；
+
+同理为 chainhash.Hash 做转换。
+
+好处：将来迁移/替换底层实现不破坏上层使用者。
+
+mempool / 第三方 REST 的“最小可信”封装
+
+providers/mempoolspace/schema.go 只描述第三方原始 JSON；
+
+mapper.go 把第三方字段收敛到 types/*；
+
+不要在公共 API 泄露第三方的字段命名或响应结构；只暴露内部统一类型；
+
+标注数据一致性：文档里说明来自第三方的数据可能与本地全节点存在短暂不一致，根包 Client 的默认策略是以 Core 为准，第三方仅用于补足或降级。
+
+最小门面用例（组合 Core + mempool 降级）
+import (
+    "context"
+    "github.com/xx/btcapis"
+)
+
+func example() error {
+    c := btcapis.New(
+        btcapis.WithBitcoindRPC("http://127.0.0.1:8332", "user", "pass"),
+        btcapis.WithMempoolSpace("https://mempool.space/api"),
+    )
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+
+    // 根包地址模块（纯计算，不需要后端）
+    info, err := btcapis.Address.Parse("bc1q...", btcapis.Mainnet)
+    if err != nil { return err }
+
+    // 费率估算：Core 优先，超时/失败 → mempoolspace 降级
+    fee, err := c.EstimateFeeRate(ctx, 6)
+    if err != nil { return err }
+
+    // 广播：仅使用后端具备 Broadcaster 能力者（如 Core），并做幂等校验
+    txid, err := c.Broadcast(ctx, rawtx)
+    _ = info; _ = fee; _ = txid
+    return err
+}
+
+测试与 CI（含外部依赖）
+
+单测：各子包紧邻测试；testdata/ 放向量。
+
+集成测：test/integration_test.go，通过环境变量驱动：
+
+BITCOIND_URL/BITCOIND_USER/BITCOIND_PASS
+
+MEMPOOL_BASE_URL
+
+ELECTRUM_ADDR
+
+用 //go:build integration 隔离。
+
+CI：
+
+golangci-lint run
+
+go test ./...（单测）
+
+集成测作为可选 Job（需要 secrets）。
+
+错误模型与可观测性
+
+错误：errors.Is/As + 少量哨兵错误（ErrNotFound, ErrTimeout, ErrBackendUnavailable）；provider 内包装底层错误并保持语义。
+
+追踪：internal/trace 暴露极简接口（StartSpan/EndSpan/AddEvent）；通过 build tag otel 切换到 OTel 实现，默认零成本空实现。
+
+日志：库内不直接打日志；允许注入 Debugf 钩子。
+
+版本与实验区
+
+稳定 API 保持语义兼容；破坏性升级走 v2 模块路径；
+
+实验性能力放 x/，文档明确“不承诺稳定”。
+
+小结（强意见）
+
+端口/适配器/门面三层结构能同时满足“根包一处可用”和“多后端可插拔”。
+
+统一 transport 与 JSON-RPC 编解码能显著降低 provider 重复代码与错误率。
+
+不要把 btcd 类型扩散到公共 API；通过 types/* 自己控边界。
+
+第三方 REST 一律映射到内部稳定模型（schema→mapper→types），并默认Core 优先，其余降级补足。
+
+如果你愿意，我可以基于这个结构直接给出初始仓库模板（包含 backend 接口、bitcoind/mempool 两个最小实现、Client.Router 的“首选+降级”策略与 2 个 examples），你拿去改名即用。
