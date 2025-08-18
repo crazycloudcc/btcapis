@@ -34,18 +34,18 @@ func (p *Packet) FinalizeInput(i int) error {
 			prev := p.UnsignedTx.TxIn[i].PreviousOutPoint
 			// 允许 segwit 仅带 NonWitnessUtxo，同时严格校验 txid 与 vout
 			if in.NonWitnessUtxo.TxHash() != prev.Hash {
-				return errors.New("psbt: non-witness utxo txid mismatch")
+				return fmt.Errorf("psbt: input %d non-witness utxo txid mismatch", i)
 			}
 			if int(prev.Index) >= len(in.NonWitnessUtxo.TxOut) {
-				return errors.New("psbt: non-witness utxo vout out of range")
+				return fmt.Errorf("psbt: input %d non-witness utxo vout out of range", i)
 			}
 			pkScript = in.NonWitnessUtxo.TxOut[prev.Index].PkScript
 			value = in.NonWitnessUtxo.TxOut[prev.Index].Value
 		} else {
-			return errors.New("psbt: missing utxo to finalize")
+			return fmt.Errorf("psbt: input %d missing utxo to finalize", i)
 		}
 	} else {
-		return errors.New("psbt: missing utxo to finalize")
+		return fmt.Errorf("psbt: input %d missing utxo to finalize", i)
 	}
 
 	// 识别脚本类型
@@ -55,17 +55,32 @@ func (p *Packet) FinalizeInput(i int) error {
 
 	switch scriptType {
 	case "p2wpkh":
-		return p.finalizeP2WPKH(in, pkScript, value)
+		if err := p.finalizeP2WPKH(in, pkScript, value); err != nil {
+			return fmt.Errorf("psbt: finalize p2wpkh input %d: %w", i, err)
+		}
+		return nil
 	case "p2wsh":
-		return p.finalizeP2WSH(in, pkScript, value)
+		if err := p.finalizeP2WSH(in, pkScript, value); err != nil {
+			return fmt.Errorf("psbt: finalize p2wsh input %d: %w", i, err)
+		}
+		return nil
 	case "p2tr":
-		return p.finalizeP2TR(in, pkScript, value)
+		if err := p.finalizeP2TR(in, pkScript, value); err != nil {
+			return fmt.Errorf("psbt: finalize p2tr input %d: %w", i, err)
+		}
+		return nil
 	case "p2sh":
-		return p.finalizeP2SH(in, pkScript, value)
+		if err := p.finalizeP2SH(in, pkScript, value); err != nil {
+			return fmt.Errorf("psbt: finalize p2sh input %d: %w", i, err)
+		}
+		return nil
 	case "p2pkh":
-		return p.finalizeP2PKH(in, pkScript, value)
+		if err := p.finalizeP2PKH(in, pkScript, value); err != nil {
+			return fmt.Errorf("psbt: finalize p2pkh input %d: %w", i, err)
+		}
+		return nil
 	default:
-		return fmt.Errorf("psbt: unsupported script type to finalize: %s", scriptType)
+		return fmt.Errorf("psbt: input %d unsupported script type to finalize: %s", i, scriptType)
 	}
 }
 

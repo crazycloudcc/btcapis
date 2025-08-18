@@ -238,13 +238,13 @@ func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType,
 		// legacy：校验 txid 匹配
 		prev := msgTx.TxIn[i].PreviousOutPoint
 		if in.NonWitnessUtxo == nil {
-			return errors.New("psbt: missing non-witness utxo for legacy input")
+			return fmt.Errorf("psbt: input %d missing non-witness utxo for legacy input", i)
 		}
 		if in.NonWitnessUtxo.TxHash() != prev.Hash {
-			return errors.New("psbt: non-witness utxo txid mismatch")
+			return fmt.Errorf("psbt: input %d non-witness utxo txid mismatch", i)
 		}
 		if int(prev.Index) >= len(in.NonWitnessUtxo.TxOut) {
-			return errors.New("psbt: non-witness utxo vout out of range")
+			return fmt.Errorf("psbt: input %d non-witness utxo vout out of range", i)
 		}
 		pkScript = in.NonWitnessUtxo.TxOut[prev.Index].PkScript
 		value = in.NonWitnessUtxo.TxOut[prev.Index].Value
@@ -293,11 +293,11 @@ func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType,
 			digest, err = txscript.CalcSignatureHash(in.RedeemScript, sighash, msgTx, i)
 		}
 	default:
-		return fmt.Errorf("psbt: unsupported script type for signing: %s", scriptType)
+		return fmt.Errorf("psbt: input %d unsupported script type for signing: %s", i, scriptType)
 	}
 
 	if err != nil {
-		return fmt.Errorf("psbt: failed to calculate signature hash: %v", err)
+		return fmt.Errorf("psbt: input %d failed to calculate signature hash: %v", i, err)
 	}
 
 	sig, err := privSign(digest)
