@@ -105,7 +105,7 @@ func ensureSameTemplate(a, b *Packet) error {
 			return errors.New("psbt: v2 meta mismatch")
 		}
 		for i := range a.Inputs {
-			if a.Inputs[i].PrevIndex != b.Inputs[i].PrevIndex || a.Inputs[i].PrevTxID != b.Inputs[i].PrevTxID {
+			if a.Inputs[i].PrevIndex != b.Inputs[i].PrevIndex || a.Inputs[i].PrevTxID != b.Inputs[i].PrevTxID || a.Inputs[i].Sequence != b.Inputs[i].Sequence {
 				return errors.New("psbt: v2 input meta mismatch")
 			}
 		}
@@ -143,6 +143,24 @@ func mergeInput(dst, src *Input) {
 	for k, v := range src.PartialSigs {
 		if _, exists := dst.PartialSigs[k]; !exists {
 			dst.PartialSigs[k] = append([]byte(nil), v...)
+		}
+	}
+
+	// BIP32派生信息合并（去重）
+	if len(dst.BIP32) == 0 && len(src.BIP32) > 0 {
+		dst.BIP32 = append([]BIP32Derivation(nil), src.BIP32...)
+	} else if len(src.BIP32) > 0 {
+		// 去重合并BIP32
+		existingKeys := make(map[string]bool)
+		for _, d := range dst.BIP32 {
+			keyHex := fmt.Sprintf("%x", d.PubKey)
+			existingKeys[keyHex] = true
+		}
+		for _, d := range src.BIP32 {
+			keyHex := fmt.Sprintf("%x", d.PubKey)
+			if !existingKeys[keyHex] {
+				dst.BIP32 = append(dst.BIP32, d)
+			}
 		}
 	}
 
@@ -230,43 +248,54 @@ func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType,
 		value = in.NonWitnessUtxo.TxOut[prev.Index].Value
 	}
 
-	// 支持：P2WPKH / P2WSH(v0) / P2TR-KeyPath
-	isP2WPKH := len(pkScript) == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14
-	isP2WSH := len(pkScript) == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20
-	isP2TR := len(pkScript) == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20
-
-	prevFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, value)
-	sighashes := txscript.NewTxSigHashes(msgTx, prevFetcher)
+	// 识别脚本类型
+	scriptType := p.classifyScriptForSigning(pkScript)
 
 	var digest []byte
-	if isP2WPKH {
+
+	switch scriptType {
+	case "p2wpkh":
 		// scriptCode = OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
 		scriptCode, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
 			AddData(pkScript[2:]).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()
-		var derr error
-		digest, derr = txscript.CalcWitnessSigHash(scriptCode, sighashes, sighash, msgTx, i, value)
-		if derr != nil {
-			return derr
-		}
-	} else if isP2WSH {
+		digest, err = txscript.CalcWitnessSigHash(scriptCode, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
+	case "p2wsh":
 		if len(in.WitnessScript) == 0 {
 			return errors.New("psbt: missing witnessScript for p2wsh")
 		}
-		var derr error
-		digest, derr = txscript.CalcWitnessSigHash(in.WitnessScript, sighashes, sighash, msgTx, i, value)
-		if derr != nil {
-			return derr
+		digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
+	case "p2tr":
+		// Taproot: 若提供了脚本路径信息（TapLeafScript/ControlBlock），此处仍生成 keypath 的 digest
+		digest, err = txscript.CalcTaprootSignatureHash(txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, txscript.NewCannedPrevOutputFetcher(pkScript, value))
+	case "p2pkh":
+		// Legacy P2PKH: 使用非见证签名
+		digest, err = txscript.CalcSignatureHash(pkScript, sighash, msgTx, i)
+	case "p2sh":
+		// P2SH: 检查redeemScript类型
+		if len(in.RedeemScript) == 0 {
+			return errors.New("psbt: missing redeemScript for p2sh signing")
 		}
-	} else if isP2TR {
-		// Taproot: 若提供了脚本路径信息（TapLeafScript/ControlBlock），此处仍生成 keypath 的 digest，
-		// 由调用方决定使用何种签名与最终化方式。后续可扩展脚本路径的 sighash 计算。
-		var derr error
-		digest, derr = txscript.CalcTaprootSignatureHash(sighashes, sighash, msgTx, i, prevFetcher)
-		if derr != nil {
-			return derr
+		redeemType := p.classifyScriptForSigning(in.RedeemScript)
+		switch redeemType {
+		case "p2wpkh", "p2wsh":
+			// P2SH包裹的SegWit: 使用见证签名
+			if redeemType == "p2wpkh" {
+				scriptCode, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
+					AddData(in.RedeemScript[2:]).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()
+				digest, err = txscript.CalcWitnessSigHash(scriptCode, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
+			} else {
+				digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
+			}
+		default:
+			// 普通P2SH: 使用非见证签名
+			digest, err = txscript.CalcSignatureHash(in.RedeemScript, sighash, msgTx, i)
 		}
-	} else {
-		return errors.New("psbt: unsupported script type for signing")
+	default:
+		return fmt.Errorf("psbt: unsupported script type for signing: %s", scriptType)
+	}
+
+	if err != nil {
+		return fmt.Errorf("psbt: failed to calculate signature hash: %v", err)
 	}
 
 	sig, err := privSign(digest)
@@ -296,4 +325,34 @@ func (p *Packet) buildMsgTxSkeleton() (*wire.MsgTx, error) {
 		m.TxOut[i] = &wire.TxOut{Value: out.Value, PkScript: append([]byte(nil), out.ScriptPubKey...)}
 	}
 	return m, nil
+}
+
+// classifyScriptForSigning 识别脚本类型（用于签名）
+func (p *Packet) classifyScriptForSigning(pkScript []byte) string {
+	n := len(pkScript)
+	if n == 0 {
+		return "unknown"
+	}
+
+	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
+	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
+		return "p2pkh"
+	}
+	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
+	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
+		return "p2sh"
+	}
+	// P2WPKH v0: OP_0 PUSH20 <20>
+	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
+		return "p2wpkh"
+	}
+	// P2WSH v0: OP_0 PUSH32 <32>
+	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
+		return "p2wsh"
+	}
+	// P2TR v1: OP_1 PUSH32 <32>
+	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
+		return "p2tr"
+	}
+	return "unknown"
 }
