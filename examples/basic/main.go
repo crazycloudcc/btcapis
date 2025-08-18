@@ -11,9 +11,11 @@ import (
 )
 
 func main() {
-	c := btcapis.New(
-		btcapis.WithBitcoindRPC(os.Getenv("BITCOIND_URL"), os.Getenv("BITCOIND_USER"), os.Getenv("BITCOIND_PASS")),
-		btcapis.WithMempoolSpace("https://mempool.space"),
+	c := btcapis.BuildClient(
+		os.Getenv("BITCOIND_URL"),
+		os.Getenv("BITCOIND_USER"),
+		os.Getenv("BITCOIND_PASS"),
+		os.Getenv("MEMPOOL_BASE_URL"),
 	)
 	tx, err := c.GetTransaction(context.Background(), "your-txid-here")
 	if err != nil {

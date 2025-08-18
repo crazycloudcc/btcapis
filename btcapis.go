@@ -43,9 +43,9 @@ type Client struct {
 	fallbacks []chain.Backend
 }
 
-type Option func(*Client)
+type option func(*Client)
 
-func New(opts ...Option) *Client {
+func newClient(opts ...option) *Client {
 	c := &Client{}
 	for _, o := range opts {
 		o(c)
@@ -54,14 +54,26 @@ func New(opts ...Option) *Client {
 	return c
 }
 
-func WithBitcoindRPC(url, user, pass string, opts ...bitcoindrpc.Option) Option {
+// BuildClient 根据配置构建 Client
+func BuildClient(bitcoindUrl, bitcoindUser, bitcoindPass, mempoolBaseUrl string) *Client {
+	opts := make([]option, 0, 2)
+	if bitcoindUrl != "" {
+		opts = append(opts, WithBitcoindRPC(bitcoindUrl, bitcoindUser, bitcoindPass))
+	}
+	if mempoolBaseUrl != "" {
+		opts = append(opts, WithMempoolSpace(mempoolBaseUrl))
+	}
+	return newClient(opts...)
+}
+
+func WithBitcoindRPC(url, user, pass string, opts ...bitcoindrpc.Option) option {
 	return func(c *Client) {
 		b := bitcoindrpc.New(url, user, pass, opts...)
 		c.primaries = append(c.primaries, b)
 	}
 }
 
-func WithMempoolSpace(baseURL string, opts ...mempoolspace.Option) Option {
+func WithMempoolSpace(baseURL string, opts ...mempoolspace.Option) option {
 	return func(c *Client) {
 		m := mempoolspace.New(baseURL, opts...)
 		c.fallbacks = append(c.fallbacks, m)
@@ -85,3 +97,8 @@ func (c *Client) EstimateFeeRate(ctx context.Context, target int) (float64, erro
 func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 	return c.router.Broadcast(ctx, rawtx)
 }
+
+// // Ctx 返回带超时的 context
+// func Ctx() (context.Context, context.CancelFunc) {
+// 	return context.WithTimeout(context.Background(), 30*time.Second)
+// }

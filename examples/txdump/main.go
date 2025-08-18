@@ -1,39 +1,36 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/crazycloudcc/btcapis"
-	"github.com/crazycloudcc/btcapis/configs"
 )
 
 func main() {
-	envPath := flag.String("env", "examples/env.json", "path to env.json")
-	flag.Parse()
+	client := btcapis.BuildClient(
+		"",                      // bitcoind url
+		"",                      // bitcoind user
+		"",                      // bitcoind pass
+		"https://mempool.space", // https://mempool.space/signet
+	)
 
-	cfg, err := configs.LoadConfig(*envPath)
-	if err != nil {
-		log.Fatalf("load config: %v", err)
-	}
-	if cfg.TxID == "" {
-		log.Fatal("txid not set in env.json")
-	}
-	client := cfg.BuildClient()
-
-	ctx, cancel := cfg.Ctx()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	raw, err := client.GetRawTransaction(ctx, cfg.TxID)
+	txid := "8e2955284d9f66f56df9c89fedd50103fe68f84ec9f138e4e20c67db15de68ee"
+
+	raw, err := client.GetRawTransaction(ctx, txid)
 	if err != nil {
 		log.Fatalf("GetRawTransaction: %v", err)
 	}
 	fmt.Printf("元数据 raw: %x\n", raw)
 	fmt.Println("--------------------------------")
 
-	tx, err := client.GetTransaction(ctx, cfg.TxID)
+	tx, err := client.GetTransaction(ctx, txid)
 	if err != nil {
 		log.Fatalf("GetTransaction: %v", err)
 	}
@@ -56,14 +53,15 @@ func main() {
 		}
 	}
 
-	// balance, err := client.GetAddressBalance(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq"
+	// balance, err := client.GetAddressBalance(ctx, addr)
 	// if err != nil {
 	// 	log.Fatalf("GetAddressBalance: %v", err)
 	// }
 	// fmt.Printf("balance: %s\n", balance)
 	// fmt.Println("--------------------------------")
 
-	// utxos, err := client.GetAddressUTXOs(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	// utxos, err := client.GetAddressUTXOs(ctx, addr)
 	// if err != nil {
 	// 	log.Fatalf("GetAddressUTXOs: %v", err)
 	// }
