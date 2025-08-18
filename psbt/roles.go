@@ -2,13 +2,23 @@ package psbt
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"golang.org/x/crypto/ripemd160"
 )
+
+// hash160Bytes returns RIPEMD160(SHA256(data))
+func hash160Bytes(data []byte) []byte {
+	sha := sha256.Sum256(data)
+	h := ripemd160.New()
+	_, _ = h.Write(sha[:])
+	return h.Sum(nil)
+}
 
 // —— Updater ——
 
@@ -279,6 +289,16 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 
 	switch scriptType {
 	case "p2wpkh":
+		// 公钥长度与哈希匹配校验
+		if len(pubkey) != 33 {
+			return fmt.Errorf("psbt: p2wpkh requires 33-byte compressed pubkey, got %d", len(pubkey))
+		}
+		if len(pkScript) != 22 || pkScript[0] != 0x00 || pkScript[1] != 0x14 {
+			return errors.New("psbt: malformed p2wpkh pkScript")
+		}
+		if !bytes.Equal(hash160Bytes(pubkey), pkScript[2:]) {
+			return errors.New("psbt: pubkey hash mismatch for p2wpkh")
+		}
 		// scriptCode = OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
 		scriptCode, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
 			AddData(pkScript[2:]).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()
@@ -287,33 +307,94 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		if len(in.WitnessScript) == 0 {
 			return errors.New("psbt: missing witnessScript for p2wsh")
 		}
+		// 见证脚本哈希需与 pkScript 的 32B 匹配
+		if len(pkScript) != 34 || pkScript[0] != 0x00 || pkScript[1] != 0x20 {
+			return errors.New("psbt: malformed p2wsh pkScript")
+		}
+		wsh := sha256.Sum256(in.WitnessScript)
+		if !bytes.Equal(wsh[:], pkScript[2:]) {
+			return errors.New("psbt: witnessScript hash mismatch for p2wsh")
+		}
+		// 非 taproot 场景不接受 32B x-only 公钥
+		if len(pubkey) == 32 {
+			return errors.New("psbt: p2wsh expects 33-byte compressed pubkey, not x-only")
+		}
 		digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
 	case "p2tr":
+		// Taproot key-path 仅接受 32B x-only 公钥
+		if len(pubkey) != 32 {
+			return fmt.Errorf("psbt: p2tr requires 32-byte x-only pubkey, got %d", len(pubkey))
+		}
 		// Taproot key-path: 正确的参数顺序应为 (hashes, sighashType, tx, idx, prevOutFetcher, tapLeafHash)
 		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, value)
 		hashes := txscript.NewTxSigHashes(msgTx, prevOutFetcher)
 		digest, err = txscript.CalcTaprootSignatureHash(hashes, sighash, msgTx, i, prevOutFetcher)
 	case "p2pkh":
+		// 公钥长度与哈希匹配校验
+		if len(pubkey) != 33 {
+			return fmt.Errorf("psbt: p2pkh requires 33-byte compressed pubkey, got %d", len(pubkey))
+		}
+		if len(pkScript) != 25 || pkScript[0] != 0x76 || pkScript[1] != 0xa9 || pkScript[2] != 0x14 || pkScript[23] != 0x88 || pkScript[24] != 0xac {
+			return errors.New("psbt: malformed p2pkh pkScript")
+		}
+		if !bytes.Equal(hash160Bytes(pubkey), pkScript[3:23]) {
+			return errors.New("psbt: pubkey hash mismatch for p2pkh")
+		}
 		// Legacy P2PKH: 使用非见证签名
 		digest, err = txscript.CalcSignatureHash(pkScript, sighash, msgTx, i)
 	case "p2sh":
-		// P2SH: 检查redeemScript类型
+		// P2SH: 先校验 redeemScript 存在且与 pkScript 的 HASH160 匹配
 		if len(in.RedeemScript) == 0 {
 			return errors.New("psbt: missing redeemScript for p2sh signing")
+		}
+		if len(pkScript) != 23 || pkScript[0] != 0xa9 || pkScript[1] != 0x14 || pkScript[22] != 0x87 {
+			return errors.New("psbt: malformed p2sh pkScript")
+		}
+		if !bytes.Equal(hash160Bytes(in.RedeemScript), pkScript[2:22]) {
+			return errors.New("psbt: redeemScript hash mismatch for p2sh")
 		}
 		redeemType := p.classifyScriptForSigning(in.RedeemScript)
 		switch redeemType {
 		case "p2wpkh", "p2wsh":
 			// P2SH包裹的SegWit: 使用见证签名
 			if redeemType == "p2wpkh" {
+				// 要求 pubkey=33 且内层20B 与 HASH160(pubkey) 匹配
+				if len(pubkey) != 33 {
+					return fmt.Errorf("psbt: p2sh-p2wpkh requires 33-byte compressed pubkey, got %d", len(pubkey))
+				}
+				if len(in.RedeemScript) != 22 || in.RedeemScript[0] != 0x00 || in.RedeemScript[1] != 0x14 {
+					return errors.New("psbt: malformed redeemScript for p2wpkh")
+				}
+				if !bytes.Equal(hash160Bytes(pubkey), in.RedeemScript[2:]) {
+					return errors.New("psbt: pubkey hash mismatch for p2sh-p2wpkh")
+				}
 				scriptCode, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
 					AddData(in.RedeemScript[2:]).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()
 				digest, err = txscript.CalcWitnessSigHash(scriptCode, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
 			} else {
+				// p2sh-p2wsh: witnessScript 必须存在且与 redeemScript 的 32B 哈希匹配
+				if len(in.WitnessScript) == 0 {
+					return errors.New("psbt: missing witnessScript for p2sh-p2wsh")
+				}
+				if len(in.RedeemScript) != 34 || in.RedeemScript[0] != 0x00 || in.RedeemScript[1] != 0x20 {
+					return errors.New("psbt: malformed redeemScript for p2wsh")
+				}
+				wsh := sha256.Sum256(in.WitnessScript)
+				if !bytes.Equal(wsh[:], in.RedeemScript[2:]) {
+					return errors.New("psbt: witnessScript hash mismatch for p2sh-p2wsh")
+				}
+				// 非 taproot 场景不接受 32B x-only 公钥
+				if len(pubkey) == 32 {
+					return errors.New("psbt: p2sh-p2wsh expects 33-byte compressed pubkey, not x-only")
+				}
 				digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
 			}
 		default:
 			// 普通P2SH: 使用非见证签名
+			// 非 taproot 场景不接受 32B x-only 公钥
+			if len(pubkey) == 32 {
+				return errors.New("psbt: legacy p2sh expects 33-byte compressed pubkey, not x-only")
+			}
 			digest, err = txscript.CalcSignatureHash(in.RedeemScript, sighash, msgTx, i)
 		}
 	default:
@@ -331,7 +412,7 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 	if in.PartialSigs == nil {
 		in.PartialSigs = make(map[string][]byte)
 	}
-	// 简单长度校验：33B 压缩公钥或 32B x-only
+	// 末尾再做一次宽泛长度兜底（已按脚本类型严格校验过）
 	if l := len(pubkey); l != 33 && l != 32 {
 		return fmt.Errorf("psbt: pubkey length invalid: %d", l)
 	}

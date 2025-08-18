@@ -13,6 +13,7 @@ type AnalyzeInputReport struct {
 	ScriptType string
 	HasUtxo    bool
 	IsFinal    bool
+	Ready      bool
 	Missing    []string
 }
 
@@ -38,6 +39,8 @@ func (p *Packet) Analyze() AnalyzeReport {
 		// 已最终化
 		if len(in.FinalScriptWitness) > 0 || len(in.FinalScriptSig) > 0 {
 			ir.IsFinal = true
+			// 已最终化的输入视作 Ready=true（不阻塞整体 Finalize）
+			ir.Ready = true
 			// 推断脚本类型：尽力从已知字段/UTXO获得
 			if spk := inputPkScriptForAnalyze(p, i); len(spk) > 0 {
 				ir.ScriptType = classifyScript(spk)
@@ -104,9 +107,26 @@ func (p *Packet) Analyze() AnalyzeReport {
 					!bytes.Equal(pkScript[2:], sha256Bytes(in.WitnessScript)) {
 					ir.Missing = append(ir.Missing, "witness_script_mismatch")
 				}
-			}
-			if len(in.PartialSigs) == 0 {
-				ir.Missing = append(ir.Missing, "partial_sig")
+				// 若 witnessScript 存在：
+				// - 多签：根据 m-of-n 计算缺失签名数
+				// - 非多签：若 WitnessStack 非空，则不强制需要 partial_sig；否则缺少 partial_sig
+				m, _, pubkeyOrder, isMultisig := parseMultisigParams(in.WitnessScript)
+				if isMultisig {
+					sigCount := 0
+					for _, pk := range pubkeyOrder {
+						keyHex := fmt.Sprintf("%x", pk)
+						if _, ok := in.PartialSigs[keyHex]; ok {
+							sigCount++
+						}
+					}
+					if sigCount < m {
+						ir.Missing = append(ir.Missing, fmt.Sprintf("partial_sig_needed:%d", m-sigCount))
+					}
+				} else {
+					if len(in.WitnessStack) == 0 && len(in.PartialSigs) == 0 {
+						ir.Missing = append(ir.Missing, "partial_sig")
+					}
+				}
 			}
 		case "p2pkh":
 			if in.NonWitnessUtxo == nil {
@@ -128,9 +148,25 @@ func (p *Packet) Analyze() AnalyzeReport {
 				case "p2wsh":
 					if len(in.WitnessScript) == 0 {
 						ir.Missing = append(ir.Missing, "witness_script")
-					}
-					if len(in.PartialSigs) == 0 {
-						ir.Missing = append(ir.Missing, "partial_sig")
+					} else {
+						// 多签按 m-of-n 评估；非多签若 WitnessStack 非空则不强制 partial_sig
+						m, _, pubkeyOrder, isMultisig := parseMultisigParams(in.WitnessScript)
+						if isMultisig {
+							sigCount := 0
+							for _, pk := range pubkeyOrder {
+								keyHex := fmt.Sprintf("%x", pk)
+								if _, ok := in.PartialSigs[keyHex]; ok {
+									sigCount++
+								}
+							}
+							if sigCount < m {
+								ir.Missing = append(ir.Missing, fmt.Sprintf("partial_sig_needed:%d", m-sigCount))
+							}
+						} else {
+							if len(in.WitnessStack) == 0 && len(in.PartialSigs) == 0 {
+								ir.Missing = append(ir.Missing, "partial_sig")
+							}
+						}
 					}
 				default:
 					if len(in.PartialSigs) == 0 {
@@ -160,8 +196,8 @@ func (p *Packet) Analyze() AnalyzeReport {
 			}
 		}
 
-		ir.IsFinal = len(ir.Missing) == 0 && ir.HasUtxo
-		if !ir.IsFinal {
+		ir.Ready = len(ir.Missing) == 0 && ir.HasUtxo
+		if !ir.Ready {
 			allReady = false
 		}
 		res.Inputs = append(res.Inputs, ir)

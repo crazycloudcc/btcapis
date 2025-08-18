@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/crazycloudcc/btcapis/script"
 	"golang.org/x/crypto/ripemd160"
@@ -343,24 +344,28 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 			}
 			stack = append(stack, append([]byte(nil), in.TapAnnex...))
 		}
-		// 计算 leafHash 并按 x-only 公钥顺序从 TapScriptSigs 取签名
+		// 计算 leafHash，按“轻量 tapscript 解析”识别 <PUSH32 xonly> OP_CHECKSIG(ADD|VERIFY)? 片段，决定签名顺序
 		leafHashArr := script.TapLeafHash(0xc0, in.TapLeafScript)
 		leafHash := fmt.Sprintf("%x", leafHashArr[:])
-		// 先压脚本栈元素
+		// 先压脚本栈元素（除签名外的其它入栈数据应由上层提供）
 		for _, v := range in.TapScriptStack {
 			stack = append(stack, append([]byte(nil), v...))
 		}
-		// 提取脚本中 PUSH32 作为 x-only 公钥近似顺序
-		for i := 0; i+33 <= len(in.TapLeafScript); i++ {
-			if in.TapLeafScript[i] == 0x20 {
+		// 轻量解析：识别 push32 xonly 后紧随的 CHECKSIG/ADD/VERIFY，按片段顺序拉取签名
+		for i := 0; i < len(in.TapLeafScript); i++ {
+			b := in.TapLeafScript[i]
+			if b >= 0x01 && b <= 0x4b && int(b) == 32 && i+1+32 <= len(in.TapLeafScript) {
 				xpk := in.TapLeafScript[i+1 : i+1+32]
-				if len(xpk) == 32 {
+				i += 1 + 32
+				// 后续必须跟随 CHECKSIG 或 CHECKSIGADD（可选 VERIFY），否则忽略该 push
+				if i < len(in.TapLeafScript) && (in.TapLeafScript[i] == byte(txscript.OP_CHECKSIG) || in.TapLeafScript[i] == byte(txscript.OP_CHECKSIGADD)) {
 					key := fmt.Sprintf("%x:%s", xpk, leafHash)
 					if s, ok := in.TapScriptSigs[key]; ok {
 						stack = append(stack, append([]byte(nil), s...))
 					}
 				}
-				i += 32
+				// 支持 OP_CHECKSIG 后跟 OP_VERIFY 的情形（不影响签名顺序，仅解析前进）
+				continue
 			}
 		}
 		// 附上 tapscript 与 control block
