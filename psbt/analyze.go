@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/crazycloudcc/btcapis/script"
 )
 
 // AnalyzeInputReport 描述单个输入的自检结果
@@ -179,10 +181,38 @@ func (p *Packet) Analyze() AnalyzeReport {
 			if len(in.TapLeafScript) > 0 || len(in.TapControlBlock) > 0 {
 				if len(in.TapLeafScript) == 0 || len(in.TapControlBlock) == 0 {
 					ir.Missing = append(ir.Missing, "tap_script_path_data")
-				}
-				// 允许无签名脚本；若需要签名，仍检查
-				if len(in.PartialSigs) == 0 && len(in.TapScriptSigs) == 0 {
-					// 脚本可无需签名，提示为可选
+				} else {
+					// 基本 control block 校验：解析 + 版本检查
+					if cb, err := script.ParseControlBlock(in.TapControlBlock); err != nil {
+						ir.Missing = append(ir.Missing, "tap_control_block_invalid")
+					} else {
+						if cb.LeafVersion != 0xc0 {
+							ir.Missing = append(ir.Missing, "tap_leaf_version_invalid")
+						}
+					}
+					// 若脚本包含 CHECKSIG/ADD，根据 leafHash 统计需要的签名数量
+					needSig := 0
+					gotSig := 0
+					h := script.TapLeafHash(0xc0, in.TapLeafScript)
+					leafHash := fmt.Sprintf("%x", h[:])
+					for i := 0; i < len(in.TapLeafScript); i++ {
+						b := in.TapLeafScript[i]
+						if b >= 0x01 && b <= 0x4b && int(b) == 32 && i+1+32 <= len(in.TapLeafScript) {
+							xpk := in.TapLeafScript[i+1 : i+1+32]
+							i += 1 + 32
+							// OP_CHECKSIG / OP_CHECKSIGADD
+							if i < len(in.TapLeafScript) && (in.TapLeafScript[i] == 0xac || in.TapLeafScript[i] == 0xba) {
+								needSig++
+								key := fmt.Sprintf("%x:%s", xpk, leafHash)
+								if _, ok := in.TapScriptSigs[key]; ok {
+									gotSig++
+								}
+							}
+						}
+					}
+					if needSig > 0 && gotSig < needSig {
+						ir.Missing = append(ir.Missing, fmt.Sprintf("tap_script_sigs_needed:%d", needSig-gotSig))
+					}
 				}
 			} else {
 				if len(in.PartialSigs) == 0 && len(in.TapKeySig) == 0 {

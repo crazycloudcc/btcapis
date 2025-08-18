@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -336,6 +337,14 @@ func parseMultisigParams(script []byte) (m int, n int, pubkeys [][]byte, isMulti
 func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 	// 先尝试脚本路径：需要 TapLeafScript + TapControlBlock
 	if len(in.TapLeafScript) > 0 && len(in.TapControlBlock) > 0 {
+		// 基础控制块校验：长度、leafVersion、证明长度（32 的倍数）
+		cbInfo, err := script.ParseControlBlock(in.TapControlBlock)
+		if err != nil {
+			return fmt.Errorf("psbt: invalid taproot control block: %v", err)
+		}
+		if cbInfo.LeafVersion != 0xc0 {
+			return fmt.Errorf("psbt: invalid taproot leaf version: 0x%x", cbInfo.LeafVersion)
+		}
 		stack := make([][]byte, 0, 4+len(in.TapScriptStack)+len(in.PartialSigs))
 		// 可选 annex：若存在且首字节为 0x50，则作为 witness[0]
 		if len(in.TapAnnex) > 0 {
@@ -392,8 +401,15 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 			p.cleanupInput(in)
 			return nil
 		}
-		for _, s := range in.PartialSigs {
-			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), in.TapAnnex...), append([]byte(nil), s...)}
+		if len(in.PartialSigs) > 0 {
+			// 确定性选择：按 pubkey(hex) 排序取最小项
+			keys := make([]string, 0, len(in.PartialSigs))
+			for k := range in.PartialSigs {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			sel := in.PartialSigs[keys[0]]
+			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), in.TapAnnex...), append([]byte(nil), sel...)}
 			in.FinalScriptSig = nil
 			p.cleanupInput(in)
 			return nil
@@ -405,8 +421,14 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 			p.cleanupInput(in)
 			return nil
 		}
-		for _, s := range in.PartialSigs {
-			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), s...)}
+		if len(in.PartialSigs) > 0 {
+			keys := make([]string, 0, len(in.PartialSigs))
+			for k := range in.PartialSigs {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			sel := in.PartialSigs[keys[0]]
+			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), sel...)}
 			in.FinalScriptSig = nil
 			p.cleanupInput(in)
 			return nil
@@ -591,11 +613,58 @@ func (p *Packet) finalizeLegacyP2SH(in *Input, pkScript []byte, value int64) err
 			return fmt.Errorf("psbt: need at least %d signatures for %d-of-%d multisig, got %d", m, m, n, sigCount)
 		}
 	} else {
-		// 非多签：保持原有行为，按已收集签名（BIP32顺序）压栈
-		for _, d := range in.BIP32 {
-			keyHex := fmt.Sprintf("%x", d.PubKey)
+		// 非多签：仅构建标准模板
+		// 1) P2PKH redeemScript: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
+		if len(in.RedeemScript) == 25 && in.RedeemScript[0] == 0x76 && in.RedeemScript[1] == 0xa9 && in.RedeemScript[2] == 0x14 && in.RedeemScript[23] == 0x88 && in.RedeemScript[24] == 0xac {
+			// 匹配唯一 (sig, pubkey)
+			var pubkey []byte
+			var sig []byte
+			// 先从 BIP32 匹配
+			for _, d := range in.BIP32 {
+				if bytes.Equal(hash160(d.PubKey), in.RedeemScript[3:23]) {
+					keyHex := fmt.Sprintf("%x", d.PubKey)
+					if s, ok := in.PartialSigs[keyHex]; ok {
+						pubkey = d.PubKey
+						sig = s
+						break
+					}
+				}
+			}
+			// 回退从 PartialSigs 的 key 解析
+			if len(pubkey) == 0 || len(sig) == 0 {
+				for k, s := range in.PartialSigs {
+					if len(k) == 66 || len(k) == 130 { // 33B/65B
+						pk, err := hex.DecodeString(k)
+						if err == nil && (len(pk) == 33 || len(pk) == 65) && bytes.Equal(hash160(pk), in.RedeemScript[3:23]) {
+							pubkey = pk
+							sig = s
+							break
+						}
+					}
+				}
+			}
+			if len(pubkey) == 0 || len(sig) == 0 {
+				return errors.New("psbt: matching pubkey/sig not found for p2sh(p2pkh)")
+			}
+			stack = append(stack, append([]byte(nil), sig...))
+			stack = append(stack, append([]byte(nil), pubkey...))
+		} else if (len(in.RedeemScript) == 35 && in.RedeemScript[0] == 0x21 && in.RedeemScript[len(in.RedeemScript)-1] == byte(txscript.OP_CHECKSIG)) ||
+			(len(in.RedeemScript) == 67 && in.RedeemScript[0] == 0x41 && in.RedeemScript[len(in.RedeemScript)-1] == byte(txscript.OP_CHECKSIG)) {
+			// 2) OP_PUSH(pubkey) OP_CHECKSIG 模板，仅放入与该 pubkey 匹配的唯一签名
+			pubkey := in.RedeemScript[1 : len(in.RedeemScript)-1]
+			keyHex := fmt.Sprintf("%x", pubkey)
 			if s, ok := in.PartialSigs[keyHex]; ok {
 				stack = append(stack, append([]byte(nil), s...))
+			} else {
+				return errors.New("psbt: missing signature for p2sh(checksig)")
+			}
+		} else {
+			// 3) 其它自定义脚本：保留旧行为（BIP32 顺序压入），建议由调用方提供更精确的栈元素要求
+			for _, d := range in.BIP32 {
+				keyHex := fmt.Sprintf("%x", d.PubKey)
+				if s, ok := in.PartialSigs[keyHex]; ok {
+					stack = append(stack, append([]byte(nil), s...))
+				}
 			}
 		}
 	}

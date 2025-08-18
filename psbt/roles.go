@@ -326,6 +326,10 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 			return fmt.Errorf("psbt: p2tr requires 32-byte x-only pubkey, got %d", len(pubkey))
 		}
 		// Taproot key-path: 正确的参数顺序应为 (hashes, sighashType, tx, idx, prevOutFetcher, tapLeafHash)
+		// 附注：若存在 annex，签名哈希需包含 annex（短期策略：拒绝带 annex 的签名请求）。
+		if len(in.TapAnnex) > 0 {
+			return errors.New("psbt: taproot annex present; signing without annex preimage not supported")
+		}
 		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, value)
 		hashes := txscript.NewTxSigHashes(msgTx, prevOutFetcher)
 		digest, err = txscript.CalcTaprootSignatureHash(hashes, sighash, msgTx, i, prevOutFetcher)
