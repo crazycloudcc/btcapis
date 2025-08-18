@@ -289,8 +289,10 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		}
 		digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
 	case "p2tr":
-		// Taproot: 若提供了脚本路径信息（TapLeafScript/ControlBlock），此处仍生成 keypath 的 digest
-		digest, err = txscript.CalcTaprootSignatureHash(txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, txscript.NewCannedPrevOutputFetcher(pkScript, value))
+		// Taproot key-path: 正确的参数顺序应为 (hashes, sighashType, tx, idx, prevOutFetcher, tapLeafHash)
+		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, value)
+		hashes := txscript.NewTxSigHashes(msgTx, prevOutFetcher)
+		digest, err = txscript.CalcTaprootSignatureHash(hashes, sighash, msgTx, i, prevOutFetcher)
 	case "p2pkh":
 		// Legacy P2PKH: 使用非见证签名
 		digest, err = txscript.CalcSignatureHash(pkScript, sighash, msgTx, i)
