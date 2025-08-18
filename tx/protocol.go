@@ -14,7 +14,7 @@ import (
 func ExtractBRC20(t *types.Tx) []types.BRC20Action {
 	var actions []types.BRC20Action
 	for i := range t.Vin {
-		info, err := AnalyzeInput(t, i)
+		info, err := AnalyzeTxInWithIdx(t, i)
 		if err != nil || info.Ord == nil || info.Ord.BodyHex == "" {
 			continue
 		}

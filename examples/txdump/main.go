@@ -41,30 +41,35 @@ func main() {
 	fmt.Println(string(outTx))
 	fmt.Println("--------------------------------")
 
-	// 解析输入0
-	info, err := btcapis.Tx.AnalyzeInput(tx, 0)
-	if err != nil {
-		log.Fatalf("AnalyzeInput: %v", err)
+	// 解析输入
+	if tx.Vin != nil && len(tx.Vin) > 0 {
+		for i, in := range tx.Vin {
+			info, err := btcapis.Tx.AnalyzeTxIn(tx, &in)
+			if err != nil {
+				log.Fatalf("AnalyzeTxIn: %v", err)
+			}
+
+			out, _ := json.MarshalIndent(info, "", "  ")
+			fmt.Println("-------------------------------- index: ", i)
+			fmt.Println(string(out))
+			fmt.Println("--------------------------------")
+		}
 	}
 
-	out, _ := json.MarshalIndent(info, "", "  ")
-	fmt.Println(string(out))
-	fmt.Println("--------------------------------")
+	// balance, err := client.GetAddressBalance(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	// if err != nil {
+	// 	log.Fatalf("GetAddressBalance: %v", err)
+	// }
+	// fmt.Printf("balance: %s\n", balance)
+	// fmt.Println("--------------------------------")
 
-	balance, err := client.GetAddressBalance(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
-	if err != nil {
-		log.Fatalf("GetAddressBalance: %v", err)
-	}
-	fmt.Printf("balance: %s\n", balance)
-	fmt.Println("--------------------------------")
-
-	utxos, err := client.GetAddressUTXOs(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
-	if err != nil {
-		log.Fatalf("GetAddressUTXOs: %v", err)
-	}
-	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
-	fmt.Println(string(outUtxos))
-	fmt.Println("--------------------------------")
+	// utxos, err := client.GetAddressUTXOs(ctx, "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq")
+	// if err != nil {
+	// 	log.Fatalf("GetAddressUTXOs: %v", err)
+	// }
+	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	// fmt.Println(string(outUtxos))
+	// fmt.Println("--------------------------------")
 
 	// ops, asm, _ := btcapis.Tx.DisasmScriptPubKey(tx, 0)
 	// fmt.Printf("ops: %+v\n", ops)

@@ -6,8 +6,12 @@ import (
 )
 
 // 对外门面：解析某个输入的脚本/控制块为 OP code 列表
-func (TxModule) AnalyzeInput(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
-	return tx.AnalyzeInput(t, idx)
+func (TxModule) AnalyzeTxInWithIdx(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
+	return tx.AnalyzeTxInWithIdx(t, idx)
+}
+
+func (TxModule) AnalyzeTxIn(t *types.Tx, in *types.TxIn) (*types.TapscriptInfo, error) {
+	return tx.AnalyzeTxIn(t, in)
 }
 
 func (TxModule) DisasmScriptPubKey(t *types.Tx, vout int) ([]types.ScriptOp, string, error) {

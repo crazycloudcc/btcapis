@@ -9,12 +9,16 @@ import (
 )
 
 // AnalyzeInput 解析某个输入的 witness/script 为 OP code 列表；仅在需要时调用。
-func AnalyzeInput(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
+func AnalyzeTxInWithIdx(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
 	if idx < 0 || idx >= len(t.Vin) {
 		return nil, fmt.Errorf("vin index out of range")
 	}
 	in := t.Vin[idx]
 
+	return AnalyzeTxIn(t, &in)
+}
+
+func AnalyzeTxIn(t *types.Tx, in *types.TxIn) (*types.TapscriptInfo, error) {
 	// 1) 尝试识别 Taproot 脚本路径
 	if stack, scr, cb, ok := script.ExtractTapScriptPath(in.Witness); ok {
 		ops, asm, err := script.DisasmScript(scr)
