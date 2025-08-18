@@ -7,14 +7,14 @@ import (
 	"log"
 
 	"github.com/crazycloudcc/btcapis"
-	"github.com/crazycloudcc/btcapis/examples/common"
+	"github.com/crazycloudcc/btcapis/configs"
 )
 
 func main() {
 	envPath := flag.String("env", "examples/env.json", "path to env.json")
 	flag.Parse()
 
-	cfg, err := common.LoadConfig(*envPath)
+	cfg, err := configs.LoadConfig(*envPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
