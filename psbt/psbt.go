@@ -49,6 +49,8 @@ type Input struct {
 	RedeemScript  []byte
 	WitnessScript []byte
 	BIP32         []BIP32Derivation
+	// 通用见证栈（适用于 P2WSH 任意脚本；不含最终脚本本身）
+	WitnessStack [][]byte
 
 	// 签名相关
 	SighashType uint32            // txscript.SigHashType

@@ -26,6 +26,15 @@ func (p *Packet) SetInputScripts(i int, redeem, witness []byte) {
 	in.WitnessScript = append([]byte(nil), witness...)
 }
 
+// SetInputWitnessStack 设置通用 witness 栈（不包含脚本与 control block）
+func (p *Packet) SetInputWitnessStack(i int, elems ...[]byte) {
+	in := p.MustInput(i)
+	in.WitnessStack = make([][]byte, 0, len(elems))
+	for _, e := range elems {
+		in.WitnessStack = append(in.WitnessStack, append([]byte(nil), e...))
+	}
+}
+
 // SetInputTapScriptPath 设置 Taproot 脚本路径花费所需数据
 // script: tapscript 脚本
 // control: 控制块
@@ -180,6 +189,19 @@ func mergeInput(dst, src *Input) {
 			dst.TapScriptStack = append(dst.TapScriptStack, append([]byte(nil), v...))
 		}
 	}
+
+	// Taproot 签名
+	if len(dst.TapKeySig) == 0 && len(src.TapKeySig) > 0 {
+		dst.TapKeySig = append([]byte(nil), src.TapKeySig...)
+	}
+	if dst.TapScriptSigs == nil {
+		dst.TapScriptSigs = make(map[string][]byte)
+	}
+	for k, v := range src.TapScriptSigs {
+		if _, ok := dst.TapScriptSigs[k]; !ok {
+			dst.TapScriptSigs[k] = append([]byte(nil), v...)
+		}
+	}
 }
 
 func mergeOutput(dst, src *Output) {
@@ -202,7 +224,7 @@ func mergeOutput(dst, src *Output) {
 // SignInput 依据 PSBT 中的 UTXO 信息尝试为索引 i 的输入签名。
 // 仅当数据充分时才签名；legacy 需校验 non-witness utxo 的 txid；缺失则返回错误。
 // privSign 为回调：接收 digest（双 SHA256）并返回 DER(sig)+hashtype（或 schnorr+hashtype）。
-func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType, privSign func(digest []byte) ([]byte, error)) error {
+func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, privSign func(digest []byte) ([]byte, error)) error {
 	in := p.MustInput(i)
 	// 存档调用时传入的 sighash，便于后续合并/审计
 	in.SighashType = uint32(sighash)
@@ -307,7 +329,11 @@ func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType,
 	if in.PartialSigs == nil {
 		in.PartialSigs = make(map[string][]byte)
 	}
-	keyHex := fmt.Sprintf("%x", pubkey33)
+	// 简单长度校验：33B 压缩公钥或 32B x-only
+	if l := len(pubkey); l != 33 && l != 32 {
+		return fmt.Errorf("psbt: pubkey length invalid: %d", l)
+	}
+	keyHex := fmt.Sprintf("%x", pubkey)
 	in.PartialSigs[keyHex] = append([]byte(nil), sig...)
 	return nil
 }

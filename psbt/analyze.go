@@ -183,6 +183,11 @@ func inputPkScriptForAnalyze(p *Packet, i int) []byte {
 				return in.NonWitnessUtxo.TxOut[prev.Index].PkScript
 			}
 		}
+		if p.IsV2() {
+			if in.NonWitnessUtxo.TxHash() == in.PrevTxID && int(in.PrevIndex) < len(in.NonWitnessUtxo.TxOut) {
+				return in.NonWitnessUtxo.TxOut[in.PrevIndex].PkScript
+			}
+		}
 	}
 	return nil
 }

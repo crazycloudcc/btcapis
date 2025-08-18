@@ -1,0 +1,101 @@
+A. Finalize 阶段的核心问题
+
+P2WSH 仍缺“通用数据栈”支持（非纯多签/单签的脚本无法最终化）
+你在 finalizeP2WSH 中只解析公钥并按顺序堆签名，然后附上 witnessScript。如果脚本还需要其它栈元素（如哈希锁 preimage、时间锁后需先 OP_TRUE 等），目前没有入口补充它们。建议：
+
+为 Input 新增 WitnessStack [][]byte（与 Taproot 的 TapScriptStack 对齐），在 finalizeP2WSH 中先 push WitnessStack，再 push 签名，最后 push witnessScript。
+
+若 isMultisig，仍在最前面添加空元素占位（OP_CHECKMULTISIG 历史空栈 bug）。
+这样 P2WSH 的任意脚本路径都能覆盖，而不仅是（多）签名脚本。
+
+P2SH-P2WSH 的签名顺序错误（使用 BIP32 顺序，而非脚本公钥顺序）
+finalizeP2SHWrappedP2WSH 里把签名按 BIP32 顺序压栈，这在多签脚本下会导致验证失败；应与 finalizeP2WSH 一样按 witnessScript 中公钥出现顺序匹配 PartialSigs。复用你已有的 parseWitnessScriptPubkeys，并在 P2SH-P2WSH 分支也照此排序构栈。
+
+Legacy P2SH（非见证）多签缺少 OP_0 占位
+finalizeLegacyP2SH 构建 FinalScriptSig 时没有为 OP_CHECKMULTISIG 加空元素占位；导致“签名对，仍验证失败”。修复：
+
+解析 redeemScript 判断是否包含 OP_CHECKMULTISIG/VERIFY；如是，则在 ScriptSig 栈最前面插入空元素，再依次压入签名和 redeemScript。
+
+P2PKH 没有从 PartialSigs 的 key 回退提取 pubkey
+finalizeP2PKH 只在 BIP32 里找公钥；若只给了 PartialSigs[hex(pub)]，会报“找不到公钥”。建议像 finalizeP2WPKH 一样，若 BIP32 缺失则从 PartialSigs 的 key 反解 33B 压缩公钥并做 hash160 校验后使用。
+
+Taproot 脚本路径未使用 TapScriptSigs
+你已经把 Taproot 的签名建模拆成 TapKeySig 与 TapScriptSigs（key=xonly:leafhash），这是对的；但 finalizeP2TR 的脚本路径仍然从 PartialSigs 取签名，没利用 TapScriptSigs。
+
+建议：根据 TapLeafScript 计算 leafHash，按脚本所需顺序（通常与公钥在脚本中出现的顺序一致）从 TapScriptSigs["<xonly>:<leafhash>"] 抽取签名，并与 TapScriptStack 一起拼装栈，再附 script 与 control block。
+
+同时可选校验 control block 与 pkScript 的关联（内部键/merkle 根）。
+ 
+
+Taproot keypath 最终化未使用 TapKeySig
+finalizeP2TR keypath 分支优先遍历 PartialSigs，而没有优先用 TapKeySig。按 PSBT-371 语义应优先使用 TapKeySig；若为空再容忍历史 PartialSigs。另外带 annex 时 witness 应为 [annex, sig]；你已处理 annex，但同样应先用 TapKeySig。
+ 
+
+v2 + NonWitnessUtxo 的最终化路径缺失
+FinalizeInput 在 WitnessUtxo==nil 且 NonWitnessUtxo!=nil 时，只有 v0 分支用 UnsignedTx 做 txid/vout 校验并提取 pkScript/value；v2 下直接报错。
+
+修复：v2 可使用 Input.PrevTxID/PrevIndex（你已经在 v2 建模里提供了）对 NonWitnessUtxo 做同样校验后取出 pkScript/value。analyze.go 的 inputPkScriptForAnalyze 也要同步支持 v2。
+ 
+ 
+
+B. Signer/Combiner 的一致性问题
+
+Taproot 签名哈希 API 的调用形参顺序需要核对
+roles.go 的 CalcTaprootSignatureHash(...) 调用把 NewTxSigHashes(...) 和 NewCannedPrevOutputFetcher(...) 传参位置混在一起（btcd 版本不同签名略有差异）。建议对照你当前 btcd 版本的函数签名，确保参数顺序/数量一致（尤其 sighashes、tx、idx、prevOutFetcher、sighashType、可选 leafHash 等）。否则会出现“本地能编译/能跑但签名错误”的隐蔽问题。
+
+SignInput 仍使用 pubkey33 []byte
+这会误导/限制 Taproot（x-only 32B）。建议改为统一 pubkey []byte，并在内部按脚本类型校验长度（33 压缩或 32 x-only），避免错误 key 写入 PartialSigs。
+
+Combine 未合并 Taproot 的 TapKeySig 与 TapScriptSigs
+mergeInput 合并了 UTXO/脚本/BIP32/部分 tapscript 元数据，但遗漏 TapKeySig 和 TapScriptSigs；这会导致多方签名合并时丢失 Taproot 的签名。修复：
+
+若 dst.TapKeySig==nil && src.TapKeySig!=nil 则复制；
+
+TapScriptSigs 做 map 合并（按键去重）。
+
+C. 解析与校验的边角问题
+
+parseWitnessScriptPubkeys 的鲁棒性
+当前解析只认紧随其后的 PUSH33/PUSH65；遇到带前置条件（如 OP_IF ... OP_CHECKSIG ... OP_ENDIF 或 CLTV 结构）时，公钥提取可能不全或顺序被打断。建议：
+
+保底策略：只在检测到 OP_CHECKMULTISIG/VERIFY 时启用“公钥顺序驱动的签名压栈”；其它情况一律走“由上层通过 WitnessStack 显式给栈元素”的通道（见 A-1）。这样避免“半解析、半猜测”造成的错序。
+
+P2SH-P2WPKH 的公钥匹配缺回退
+finalizeP2SHWrappedP2WPKH 只从 BIP32 找匹配公钥；像 P2WPKH 分支一样，建议在 BIP32 不存在/不匹配时，回退从 PartialSigs 的 key 反解 pubkey 并校验 hash160(pub)==redeemScript[2:]。
+
+Analyze 对 v2 + NonWitnessUtxo 的取 pkScript 也只支持 v0
+inputPkScriptForAnalyze 在 v2 下不会从 NonWitnessUtxo 推断 pkScript，导致脚本类型识别偏保守。参照 A-7 的处理把 v2 也覆盖掉。
+
+D. 建议的最小改动清单（可直接着手）
+
+Input 新增：WitnessStack [][]byte；finalizeP2WSH 先压 WitnessStack（若 isMultisig 前置空元素），再压签名，最后 witnessScript。
+ 
+
+finalizeP2SHWrappedP2WSH：改用 parseWitnessScriptPubkeys 获取顺序，按序取 PartialSigs 入栈；必要时也支持 WitnessStack。
+
+finalizeLegacyP2SH：检测 OP_CHECKMULTISIG/VERIFY 时在 ScriptSig 栈首添加空元素占位。
+
+finalizeP2PKH：缺 BIP32 时从 PartialSigs 的 key 反解公钥并做 hash160 校验。
+
+finalizeP2TR：
+
+脚本路径：根据 TapLeafScript 计算 leafHash，优先从 TapScriptSigs（xonly:leafhash）取签名；把 TapScriptStack + 签名 + script + control 依序压栈。
+
+keypath：优先使用 TapKeySig 组 witness（带 annex 时 [annex, sig]），再回退 PartialSigs。
+ 
+
+FinalizeInput & Analyze：v2 支持仅 NonWitnessUtxo 的取 pkScript/value 路径（用 PrevTxID/PrevIndex 校验后取出）。
+ 
+ 
+
+Combine.mergeInput：合并 TapKeySig 与 TapScriptSigs（map 去重）。
+
+SignInput：参数改为 pubkey []byte；按脚本类型检查 33/32 字节；核对 CalcTaprootSignatureHash 的形参顺序/重载。
+
+总结（结论与优先级）
+
+必须先修：A-1/A-2/A-3/A-5/A-7（覆盖率和正确性影响最大）。
+
+随后修：B-8/B-9/B-10、C-11/C-12/C-13（互操作性与鲁棒性）。
+
+做完这些，你的模块已经能稳定覆盖：P2PKH / P2SH(含多签) / P2WPKH / P2WSH(任意脚本) / P2SH-P2W* / P2TR keypath & scriptpath 的主流场景，且支持 v2 的合并与仅 NonWitnessUtxo 的最终化路径。

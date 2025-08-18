@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcd/wire"
+	"github.com/crazycloudcc/btcapis/script"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -29,21 +30,23 @@ func (p *Packet) FinalizeInput(i int) error {
 		pkScript = in.WitnessUtxo.PkScript
 		value = in.WitnessUtxo.Value
 	} else if in.NonWitnessUtxo != nil {
-		// 对于legacy输入，从NonWitnessUtxo获取pkScript和value
+		// 从 NonWitnessUtxo 获取 pkScript 与 value（v0/v2 均支持）
+		var prev wire.OutPoint
 		if p.IsV0() && p.UnsignedTx != nil {
-			prev := p.UnsignedTx.TxIn[i].PreviousOutPoint
-			// 允许 segwit 仅带 NonWitnessUtxo，同时严格校验 txid 与 vout
-			if in.NonWitnessUtxo.TxHash() != prev.Hash {
-				return fmt.Errorf("psbt: input %d non-witness utxo txid mismatch", i)
-			}
-			if int(prev.Index) >= len(in.NonWitnessUtxo.TxOut) {
-				return fmt.Errorf("psbt: input %d non-witness utxo vout out of range", i)
-			}
-			pkScript = in.NonWitnessUtxo.TxOut[prev.Index].PkScript
-			value = in.NonWitnessUtxo.TxOut[prev.Index].Value
+			prev = p.UnsignedTx.TxIn[i].PreviousOutPoint
+		} else if p.IsV2() {
+			prev = wire.OutPoint{Hash: in.PrevTxID, Index: in.PrevIndex}
 		} else {
 			return fmt.Errorf("psbt: input %d missing utxo to finalize", i)
 		}
+		if in.NonWitnessUtxo.TxHash() != prev.Hash {
+			return fmt.Errorf("psbt: input %d non-witness utxo txid mismatch", i)
+		}
+		if int(prev.Index) >= len(in.NonWitnessUtxo.TxOut) {
+			return fmt.Errorf("psbt: input %d non-witness utxo vout out of range", i)
+		}
+		pkScript = in.NonWitnessUtxo.TxOut[prev.Index].PkScript
+		value = in.NonWitnessUtxo.TxOut[prev.Index].Value
 	} else {
 		return fmt.Errorf("psbt: input %d missing utxo to finalize", i)
 	}
@@ -186,23 +189,22 @@ func (p *Packet) finalizeP2WSH(in *Input, pkScript []byte, value int64) error {
 		}
 	}
 
-	// 解析witnessScript中的公钥顺序
-	pubkeyOrder, err := p.parseWitnessScriptPubkeys(ws)
-	if err != nil {
-		return fmt.Errorf("psbt: failed to parse witnessScript pubkeys: %v", err)
-	}
-
-	// 按witnessScript中公钥顺序构建签名栈
-	stack := make([][]byte, 0, len(in.PartialSigs)+2)
+	// 构建见证栈：若为多签，先空元素；再压通用 WitnessStack；再按公钥顺序压签名；最后脚本
+	stack := make([][]byte, 0, len(in.WitnessStack)+len(in.PartialSigs)+2)
 	if isMultisig {
-		stack = append(stack, []byte{}) // 占位空元素
+		stack = append(stack, []byte{})
 	}
-
-	// 按witnessScript中公钥顺序添加签名
-	for _, pubkey := range pubkeyOrder {
-		keyHex := fmt.Sprintf("%x", pubkey)
-		if sig, ok := in.PartialSigs[keyHex]; ok {
-			stack = append(stack, append([]byte(nil), sig...))
+	for _, v := range in.WitnessStack {
+		stack = append(stack, append([]byte(nil), v...))
+	}
+	if isMultisig {
+		if pubkeyOrder, err := p.parseWitnessScriptPubkeys(ws); err == nil {
+			for _, pubkey := range pubkeyOrder {
+				keyHex := fmt.Sprintf("%x", pubkey)
+				if sig, ok := in.PartialSigs[keyHex]; ok {
+					stack = append(stack, append([]byte(nil), sig...))
+				}
+			}
 		}
 	}
 
@@ -275,17 +277,24 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 			}
 			stack = append(stack, append([]byte(nil), in.TapAnnex...))
 		}
-		if len(in.TapScriptStack) > 0 {
-			for _, v := range in.TapScriptStack {
-				stack = append(stack, append([]byte(nil), v...))
-			}
-		} else {
-			// 若未显式提供栈，则回退为按 BIP32 顺序附加 PartialSigs
-			for _, d := range in.BIP32 {
-				keyHex := fmt.Sprintf("%x", d.PubKey)
-				if s, ok := in.PartialSigs[keyHex]; ok {
-					stack = append(stack, append([]byte(nil), s...))
+		// 计算 leafHash 并按 x-only 公钥顺序从 TapScriptSigs 取签名
+		leafHashArr := script.TapLeafHash(0xc0, in.TapLeafScript)
+		leafHash := fmt.Sprintf("%x", leafHashArr[:])
+		// 先压脚本栈元素
+		for _, v := range in.TapScriptStack {
+			stack = append(stack, append([]byte(nil), v...))
+		}
+		// 提取脚本中 PUSH32 作为 x-only 公钥近似顺序
+		for i := 0; i+33 <= len(in.TapLeafScript); i++ {
+			if in.TapLeafScript[i] == 0x20 {
+				xpk := in.TapLeafScript[i+1 : i+1+32]
+				if len(xpk) == 32 {
+					key := fmt.Sprintf("%x:%s", xpk, leafHash)
+					if s, ok := in.TapScriptSigs[key]; ok {
+						stack = append(stack, append([]byte(nil), s...))
+					}
 				}
+				i += 32
 			}
 		}
 		// 附上 tapscript 与 control block
@@ -306,6 +315,12 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 		if in.TapAnnex[0] != 0x50 {
 			return errors.New("psbt: invalid taproot annex (must start with 0x50)")
 		}
+		if len(in.TapKeySig) > 0 {
+			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), in.TapAnnex...), append([]byte(nil), in.TapKeySig...)}
+			in.FinalScriptSig = nil
+			p.cleanupInput(in)
+			return nil
+		}
 		for _, s := range in.PartialSigs {
 			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), in.TapAnnex...), append([]byte(nil), s...)}
 			in.FinalScriptSig = nil
@@ -313,6 +328,12 @@ func (p *Packet) finalizeP2TR(in *Input, pkScript []byte, value int64) error {
 			return nil
 		}
 	} else {
+		if len(in.TapKeySig) > 0 {
+			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), in.TapKeySig...)}
+			in.FinalScriptSig = nil
+			p.cleanupInput(in)
+			return nil
+		}
 		for _, s := range in.PartialSigs {
 			in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), s...)}
 			in.FinalScriptSig = nil
@@ -378,8 +399,21 @@ func (p *Packet) finalizeP2SHWrappedP2WPKH(in *Input, pkScript []byte, value int
 		}
 	}
 
+	// 回退从 PartialSigs 的 key 解析压缩公钥
 	if len(pubkey) == 0 || len(sig) == 0 {
-		return errors.New("psbt: matching pubkey/sig not found for p2sh-p2wpkh")
+		for keyHex, s := range in.PartialSigs {
+			if len(keyHex) == 66 {
+				pk, err := hex.DecodeString(keyHex)
+				if err == nil && len(pk) == 33 && bytes.Equal(hash160(pk), redeemPkScript[2:]) {
+					pubkey = pk
+					sig = s
+					break
+				}
+			}
+		}
+		if len(pubkey) == 0 || len(sig) == 0 {
+			return errors.New("psbt: matching pubkey/sig not found for p2sh-p2wpkh")
+		}
 	}
 
 	// FinalScriptSig = PUSH(redeemScript)
@@ -417,7 +451,7 @@ func (p *Packet) finalizeP2SHWrappedP2WSH(in *Input, pkScript []byte, value int6
 	}
 
 	// 构建见证栈
-	stack := make([][]byte, 0, len(in.PartialSigs)+2)
+	stack := make([][]byte, 0, len(in.WitnessStack)+len(in.PartialSigs)+2)
 
 	// 检测多签
 	ws := in.WitnessScript
@@ -433,11 +467,17 @@ func (p *Packet) finalizeP2SHWrappedP2WSH(in *Input, pkScript []byte, value int6
 		stack = append(stack, []byte{}) // 占位空元素
 	}
 
-	// 按BIP32顺序添加签名
-	for _, d := range in.BIP32 {
-		keyHex := fmt.Sprintf("%x", d.PubKey)
-		if s, ok := in.PartialSigs[keyHex]; ok {
-			stack = append(stack, append([]byte(nil), s...))
+	// 先压通用 WitnessStack
+	for _, v := range in.WitnessStack {
+		stack = append(stack, append([]byte(nil), v...))
+	}
+	// 按 witnessScript 公钥顺序添加签名
+	if pubkeyOrder, err := p.parseWitnessScriptPubkeys(ws); err == nil {
+		for _, pubkey := range pubkeyOrder {
+			keyHex := fmt.Sprintf("%x", pubkey)
+			if s, ok := in.PartialSigs[keyHex]; ok {
+				stack = append(stack, append([]byte(nil), s...))
+			}
 		}
 	}
 
@@ -461,8 +501,20 @@ func (p *Packet) finalizeLegacyP2SH(in *Input, pkScript []byte, value int64) err
 		return fmt.Errorf("psbt: redeemScript hash mismatch for legacy p2sh: expected %x, got %x", expectedHash, actualHash)
 	}
 
-	// 构建FinalScriptSig: [sig1, sig2, ..., redeemScript]
-	stack := make([][]byte, 0, len(in.PartialSigs)+1)
+	// 构建FinalScriptSig: [OP_0?, sig1, sig2, ..., redeemScript]
+	stack := make([][]byte, 0, len(in.PartialSigs)+2)
+
+	// 检测是否为多签脚本
+	isMultisig := false
+	for _, b := range in.RedeemScript {
+		if b == 0xae || b == 0xaf {
+			isMultisig = true
+			break
+		}
+	}
+	if isMultisig {
+		stack = append(stack, []byte{}) // OP_CHECKMULTISIG 历史空元素占位
+	}
 
 	// 添加签名（按BIP32顺序）
 	for _, d := range in.BIP32 {
@@ -503,6 +555,18 @@ func (p *Packet) finalizeP2PKH(in *Input, pkScript []byte, value int64) error {
 		}
 	}
 
+	// 若 BIP32 未匹配，尝试从 PartialSigs 的 key 反解公钥并校验
+	if len(pubkey) == 0 || len(sig) == 0 {
+		for keyHex, s := range in.PartialSigs {
+			if len(keyHex) == 66 { // 33B 压缩公钥
+				if pk, err := hex.DecodeString(keyHex); err == nil && len(pk) == 33 && bytes.Equal(hash160(pk), pkScript[3:23]) {
+					pubkey = pk
+					sig = s
+					break
+				}
+			}
+		}
+	}
 	if len(pubkey) == 0 || len(sig) == 0 {
 		return errors.New("psbt: matching pubkey/sig not found for p2pkh")
 	}
