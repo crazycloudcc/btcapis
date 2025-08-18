@@ -204,6 +204,8 @@ func mergeOutput(dst, src *Output) {
 // privSign 为回调：接收 digest（双 SHA256）并返回 DER(sig)+hashtype（或 schnorr+hashtype）。
 func (p *Packet) SignInput(i int, pubkey33 []byte, sighash txscript.SigHashType, privSign func(digest []byte) ([]byte, error)) error {
 	in := p.MustInput(i)
+	// 存档调用时传入的 sighash，便于后续合并/审计
+	in.SighashType = uint32(sighash)
 	// 基本约束
 	if in.WitnessUtxo == nil && in.NonWitnessUtxo == nil {
 		return errors.New("psbt: missing utxo for signing")

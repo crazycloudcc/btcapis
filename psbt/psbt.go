@@ -29,6 +29,9 @@ type Packet struct {
 
 	Inputs  []*Input
 	Outputs []*Output
+
+	// Finalize 后清理策略
+	Cleanup CleanupOptions
 }
 
 // Input 表示单个输入的 PSBT 附加数据
@@ -62,6 +65,12 @@ type Input struct {
 	TapControlBlock []byte
 	TapAnnex        []byte
 	TapScriptStack  [][]byte
+
+	// Taproot 签名（PSBT-371 友好建模）
+	// Keypath 签名：单一 schnorr+hashtype
+	TapKeySig []byte
+	// Scriptpath 签名：key = hex(xonlyPubKey)+":"+hex(leafHash)
+	TapScriptSigs map[string][]byte
 }
 
 // Output 表示单个输出的 PSBT 附加数据
@@ -74,6 +83,13 @@ type Output struct {
 	BIP32         []BIP32Derivation
 }
 
+// CleanupOptions 控制 Finalize 后的字段保留策略
+type CleanupOptions struct {
+	KeepWitnessScript bool // 是否保留 WitnessScript/TapLeafScript/ControlBlock/Annex
+	KeepRedeemScript  bool // 是否保留 RedeemScript
+	KeepUTXO          bool // 是否保留 WitnessUtxo/NonWitnessUtxo
+}
+
 // BIP32Derivation 记录单钥的派生路径
 type BIP32Derivation struct {
 	PubKey      []byte   // 压缩公钥(33)
@@ -84,17 +100,18 @@ type BIP32Derivation struct {
 // NewV0FromUnsignedTx 创建 v0 PSBT：填入未签名交易；Inputs/Outputs 根据 UnsignedTx 初始化空 maps。
 func NewV0FromUnsignedTx(unsigned *wire.MsgTx) *Packet {
 	if unsigned == nil {
-		return &Packet{Version: VersionV0}
+		return &Packet{Version: VersionV0, Cleanup: CleanupOptions{KeepWitnessScript: true, KeepRedeemScript: true, KeepUTXO: true}}
 	}
-	p := &Packet{Version: VersionV0, UnsignedTx: unsigned}
+	p := &Packet{Version: VersionV0, UnsignedTx: unsigned, Cleanup: CleanupOptions{KeepWitnessScript: true, KeepRedeemScript: true, KeepUTXO: true}}
 	p.Inputs = make([]*Input, len(unsigned.TxIn))
 	for i := range p.Inputs {
 		in := unsigned.TxIn[i]
 		p.Inputs[i] = &Input{
-			PrevTxID:    in.PreviousOutPoint.Hash,
-			PrevIndex:   in.PreviousOutPoint.Index,
-			Sequence:    in.Sequence,
-			PartialSigs: make(map[string][]byte),
+			PrevTxID:      in.PreviousOutPoint.Hash,
+			PrevIndex:     in.PreviousOutPoint.Index,
+			Sequence:      in.Sequence,
+			PartialSigs:   make(map[string][]byte),
+			TapScriptSigs: make(map[string][]byte),
 		}
 	}
 	p.Outputs = make([]*Output, len(unsigned.TxOut))
@@ -107,10 +124,10 @@ func NewV0FromUnsignedTx(unsigned *wire.MsgTx) *Packet {
 
 // NewV2 创建 v2 PSBT：设置元数据与 I/O 计数，并初始化空 maps。
 func NewV2(txVersion int32, lockTime uint32, inCount, outCount int) *Packet {
-	p := &Packet{Version: VersionV2, TxVersion: txVersion, LockTime: lockTime}
+	p := &Packet{Version: VersionV2, TxVersion: txVersion, LockTime: lockTime, Cleanup: CleanupOptions{KeepWitnessScript: true, KeepRedeemScript: true, KeepUTXO: true}}
 	p.Inputs = make([]*Input, inCount)
 	for i := 0; i < inCount; i++ {
-		p.Inputs[i] = &Input{PartialSigs: make(map[string][]byte)}
+		p.Inputs[i] = &Input{PartialSigs: make(map[string][]byte), TapScriptSigs: make(map[string][]byte)}
 	}
 	p.Outputs = make([]*Output, outCount)
 	for i := 0; i < outCount; i++ {

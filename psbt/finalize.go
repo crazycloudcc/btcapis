@@ -32,6 +32,10 @@ func (p *Packet) FinalizeInput(i int) error {
 		// 对于legacy输入，从NonWitnessUtxo获取pkScript和value
 		if p.IsV0() && p.UnsignedTx != nil {
 			prev := p.UnsignedTx.TxIn[i].PreviousOutPoint
+			// 允许 segwit 仅带 NonWitnessUtxo，同时严格校验 txid 与 vout
+			if in.NonWitnessUtxo.TxHash() != prev.Hash {
+				return errors.New("psbt: non-witness utxo txid mismatch")
+			}
 			if int(prev.Index) >= len(in.NonWitnessUtxo.TxOut) {
 				return errors.New("psbt: non-witness utxo vout out of range")
 			}
@@ -47,9 +51,7 @@ func (p *Packet) FinalizeInput(i int) error {
 	// 识别脚本类型
 	scriptType := classifyScript(pkScript)
 
-	if len(in.PartialSigs) == 0 {
-		return errors.New("psbt: need partial sig to finalize")
-	}
+	// 不在此处统一强制需要 PartialSigs，由各分支自行校验（例如 tapscript 可无签名）。
 
 	switch scriptType {
 	case "p2wpkh":
@@ -366,7 +368,7 @@ func (p *Packet) finalizeP2SHWrappedP2WPKH(in *Input, pkScript []byte, value int
 	}
 
 	// FinalScriptSig = PUSH(redeemScript)
-	in.FinalScriptSig = append([]byte{0x17}, in.RedeemScript...)
+	in.FinalScriptSig = p.buildScriptSig([][]byte{append([]byte(nil), in.RedeemScript...)})
 	// FinalWitness = [sig, pubkey]
 	in.FinalScriptWitness = wire.TxWitness{append([]byte(nil), sig...), append([]byte(nil), pubkey...)}
 
@@ -427,7 +429,7 @@ func (p *Packet) finalizeP2SHWrappedP2WSH(in *Input, pkScript []byte, value int6
 	stack = append(stack, append([]byte(nil), ws...))
 
 	// FinalScriptSig = PUSH(redeemScript)
-	in.FinalScriptSig = append([]byte{0x23}, in.RedeemScript...)
+	in.FinalScriptSig = p.buildScriptSig([][]byte{append([]byte(nil), in.RedeemScript...)})
 	// FinalWitness = [..., witnessScript]
 	in.FinalScriptWitness = wire.TxWitness(stack)
 
@@ -519,9 +521,25 @@ func (p *Packet) buildScriptSig(stack [][]byte) []byte {
 
 // cleanupInput 清理输入字段
 func (p *Packet) cleanupInput(in *Input) {
+	// 最小化通用临时字段
 	in.PartialSigs = nil
 	in.BIP32 = nil
-	// 保留WitnessScript和RedeemScript供上层检查
+	in.TapScriptStack = nil
+
+	// 配置化清理策略
+	if !p.Cleanup.KeepWitnessScript {
+		in.WitnessScript = nil
+		in.TapLeafScript = nil
+		in.TapControlBlock = nil
+		in.TapAnnex = nil
+	}
+	if !p.Cleanup.KeepRedeemScript {
+		in.RedeemScript = nil
+	}
+	if !p.Cleanup.KeepUTXO {
+		in.WitnessUtxo = nil
+		in.NonWitnessUtxo = nil
+	}
 }
 
 // FinalizeAll 尝试最终化所有输入
@@ -553,7 +571,7 @@ func (p *Packet) Extract() (*wire.MsgTx, error) {
 	for i := range p.Inputs {
 		in := p.Inputs[i]
 		if len(in.FinalScriptWitness) == 0 && len(in.FinalScriptSig) == 0 {
-			return nil, errors.New("psbt: input not finalized")
+			return nil, fmt.Errorf("psbt: input %d not finalized", i)
 		}
 		m.TxIn[i].Witness = in.FinalScriptWitness
 		m.TxIn[i].SignatureScript = append([]byte(nil), in.FinalScriptSig...)
