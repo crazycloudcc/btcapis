@@ -10,12 +10,12 @@ import (
 )
 
 // GetAddressBalance returns the balance string for an address in format "confirmed(mempool)" in BTC.
-func (c *Client) GetAddressBalance(ctx context.Context, addr string) (string, error) {
+func (c *Client) GetAddressBalance(ctx context.Context, addr string) (float64, float64, error) {
 	confirmed, mempool, err := c.addressBalance(ctx, addr)
 	if err != nil {
-		return "", err
+		return 0, 0, err
 	}
-	return fmt.Sprintf("%s(%s)", satsToBTC(confirmed), satsToBTC(mempool)), nil
+	return satsToBTC(confirmed), satsToBTC(mempool), nil
 }
 
 // GetAddressUTXOs returns UTXOs belonging to the address.
@@ -41,7 +41,12 @@ func (c *Client) addressBalance(ctx context.Context, addr string) (int64, int64,
 	return 0, 0, chain.ErrBackendUnavailable
 }
 
-func satsToBTC(v int64) string {
+func satsToBTC(v int64) float64 {
+	f := float64(v) / 1e8
+	return f
+}
+
+func satsToBTCString(v int64) string {
 	sign := ""
 	if v < 0 {
 		sign = "-"
