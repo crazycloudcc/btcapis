@@ -565,26 +565,33 @@ func (p *Packet) finalizeLegacyP2SH(in *Input, pkScript []byte, value int64) err
 		return fmt.Errorf("psbt: redeemScript hash mismatch for legacy p2sh: expected %x, got %x", expectedHash, actualHash)
 	}
 
-	// 构建FinalScriptSig: [OP_0?, sig1, sig2, ..., redeemScript]
+	// 构建FinalScriptSig: [OP_0?, sigs按照脚本公钥顺序, redeemScript]
 	stack := make([][]byte, 0, len(in.PartialSigs)+2)
 
-	// 检测是否为多签脚本
-	isMultisig := false
-	for _, b := range in.RedeemScript {
-		if b == 0xae || b == 0xaf {
-			isMultisig = true
-			break
-		}
-	}
+	// 解析多签参数与公钥顺序
+	m, n, pubkeyOrder, isMultisig := parseMultisigParams(in.RedeemScript)
 	if isMultisig {
 		stack = append(stack, []byte{}) // OP_CHECKMULTISIG 历史空元素占位
-	}
-
-	// 添加签名（按BIP32顺序）
-	for _, d := range in.BIP32 {
-		keyHex := fmt.Sprintf("%x", d.PubKey)
-		if s, ok := in.PartialSigs[keyHex]; ok {
-			stack = append(stack, append([]byte(nil), s...))
+		// 按脚本中公钥顺序压入签名
+		sigCount := 0
+		for _, pub := range pubkeyOrder {
+			keyHex := fmt.Sprintf("%x", pub)
+			if s, ok := in.PartialSigs[keyHex]; ok {
+				stack = append(stack, append([]byte(nil), s...))
+				sigCount++
+			}
+		}
+		// 可选：严格校验 m-of-n
+		if sigCount < m {
+			return fmt.Errorf("psbt: need at least %d signatures for %d-of-%d multisig, got %d", m, m, n, sigCount)
+		}
+	} else {
+		// 非多签：保持原有行为，按已收集签名（BIP32顺序）压栈
+		for _, d := range in.BIP32 {
+			keyHex := fmt.Sprintf("%x", d.PubKey)
+			if s, ok := in.PartialSigs[keyHex]; ok {
+				stack = append(stack, append([]byte(nil), s...))
+			}
 		}
 	}
 
