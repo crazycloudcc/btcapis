@@ -179,15 +179,9 @@ func (p *Packet) finalizeP2WSH(in *Input, pkScript []byte, value int64) error {
 		return fmt.Errorf("psbt: witnessScript hash mismatch for p2wsh: expected %x, got %x", expectedHash, actualHash[:])
 	}
 
-	// 检测多签：是否包含 OP_CHECKMULTISIG/VERIFY (0xae/0xaf)
+	// 检测并解析多签参数
 	ws := in.WitnessScript
-	isMultisig := false
-	for _, b := range ws {
-		if b == 0xae || b == 0xaf {
-			isMultisig = true
-			break
-		}
-	}
+	m, n, pubkeyOrder, isMultisig := parseMultisigParams(ws)
 
 	// 构建见证栈：若为多签，先空元素；再压通用 WitnessStack；再按公钥顺序压签名；最后脚本
 	stack := make([][]byte, 0, len(in.WitnessStack)+len(in.PartialSigs)+2)
@@ -197,20 +191,23 @@ func (p *Packet) finalizeP2WSH(in *Input, pkScript []byte, value int64) error {
 	for _, v := range in.WitnessStack {
 		stack = append(stack, append([]byte(nil), v...))
 	}
+	var sigCount int
 	if isMultisig {
-		if pubkeyOrder, err := p.parseWitnessScriptPubkeys(ws); err == nil {
-			for _, pubkey := range pubkeyOrder {
-				keyHex := fmt.Sprintf("%x", pubkey)
-				if sig, ok := in.PartialSigs[keyHex]; ok {
-					stack = append(stack, append([]byte(nil), sig...))
-				}
+		for _, pubkey := range pubkeyOrder {
+			keyHex := fmt.Sprintf("%x", pubkey)
+			if sig, ok := in.PartialSigs[keyHex]; ok {
+				stack = append(stack, append([]byte(nil), sig...))
+				sigCount++
 			}
 		}
 	}
 
 	stack = append(stack, append([]byte(nil), ws...))
+	if isMultisig && sigCount < m {
+		return fmt.Errorf("psbt: need at least %d signatures for %d-of-%d multisig, got %d", m, m, n, sigCount)
+	}
 	if len(stack) < 2 {
-		return errors.New("psbt: not enough sigs to finalize p2wsh")
+		return errors.New("psbt: not enough elements to finalize p2wsh")
 	}
 
 	in.FinalScriptWitness = wire.TxWitness(stack)
@@ -263,6 +260,75 @@ func (p *Packet) parseWitnessScriptPubkeys(script []byte) ([][]byte, error) {
 	}
 
 	return pubkeys, nil
+}
+
+// parseMultisigParams 解析多签脚本的 m、n 以及公钥顺序（仅处理常见 OP_M <pubkeys...> OP_N OP_CHECKMULTISIG(/VERIFY)）
+func parseMultisigParams(script []byte) (m int, n int, pubkeys [][]byte, isMultisig bool) {
+	// 复制一份公钥解析逻辑
+	i := 0
+	// 读取开头 OP_N 作为 m
+	if i < len(script) && script[i] >= 0x51 && script[i] <= 0x60 {
+		m = int(script[i] - 0x50)
+		i++
+	}
+	// 读取公钥序列
+	for i < len(script) {
+		if script[i] == 0xae || script[i] == 0xaf {
+			// 到达 CHECKMULTISIG，结束
+			break
+		}
+		if script[i] == 0x21 { // PUSH33
+			if i+1+33 > len(script) {
+				return 0, 0, nil, false
+			}
+			pk := script[i+1 : i+1+33]
+			pubkeys = append(pubkeys, append([]byte(nil), pk...))
+			i += 1 + 33
+			continue
+		}
+		if script[i] == 0x41 { // PUSH65
+			if i+1+65 > len(script) {
+				return 0, 0, nil, false
+			}
+			pk := script[i+1 : i+1+65]
+			pubkeys = append(pubkeys, append([]byte(nil), pk...))
+			i += 1 + 65
+			continue
+		}
+		// 跳过其他操作码
+		i++
+	}
+	// 读取结尾的 OP_N 作为 n（在 CHECKMULTISIG 之前一个字节可能是 OP_N）
+	// 简单回溯寻找最后一个 OP_N（不严谨但覆盖常见多签模板）
+	for j := len(script) - 1; j >= 0; j-- {
+		if script[j] >= 0x51 && script[j] <= 0x60 {
+			n = int(script[j] - 0x50)
+			break
+		}
+	}
+	// 确认包含 CHECKMULTISIG/VERIFY
+	for _, b := range script {
+		if b == 0xae || b == 0xaf {
+			isMultisig = true
+			break
+		}
+	}
+	if !isMultisig {
+		return 0, 0, nil, false
+	}
+	if n == 0 {
+		n = len(pubkeys)
+	}
+	// 基本合理性检查
+	if m <= 0 || n <= 0 || m > n || len(pubkeys) != n {
+		// 尝试用解析到的公钥数作为 n
+		if len(pubkeys) > 0 && m > 0 && m <= len(pubkeys) {
+			n = len(pubkeys)
+		} else {
+			return 0, 0, nil, false
+		}
+	}
+	return m, n, pubkeys, true
 }
 
 // finalizeP2TR 最终化P2TR输入
@@ -453,15 +519,9 @@ func (p *Packet) finalizeP2SHWrappedP2WSH(in *Input, pkScript []byte, value int6
 	// 构建见证栈
 	stack := make([][]byte, 0, len(in.WitnessStack)+len(in.PartialSigs)+2)
 
-	// 检测多签
+	// 检测并解析多签参数
 	ws := in.WitnessScript
-	isMultisig := false
-	for _, b := range ws {
-		if b == 0xae || b == 0xaf {
-			isMultisig = true
-			break
-		}
-	}
+	m, n, pubkeyOrder, isMultisig := parseMultisigParams(ws)
 
 	if isMultisig {
 		stack = append(stack, []byte{}) // 占位空元素
@@ -471,17 +531,21 @@ func (p *Packet) finalizeP2SHWrappedP2WSH(in *Input, pkScript []byte, value int6
 	for _, v := range in.WitnessStack {
 		stack = append(stack, append([]byte(nil), v...))
 	}
-	// 按 witnessScript 公钥顺序添加签名
-	if pubkeyOrder, err := p.parseWitnessScriptPubkeys(ws); err == nil {
-		for _, pubkey := range pubkeyOrder {
-			keyHex := fmt.Sprintf("%x", pubkey)
-			if s, ok := in.PartialSigs[keyHex]; ok {
-				stack = append(stack, append([]byte(nil), s...))
-			}
+	// 按 witnessScript 公钥顺序添加签名并计数
+	sigCount := 0
+	for _, pubkey := range pubkeyOrder {
+		keyHex := fmt.Sprintf("%x", pubkey)
+		if s, ok := in.PartialSigs[keyHex]; ok {
+			stack = append(stack, append([]byte(nil), s...))
+			sigCount++
 		}
 	}
 
 	stack = append(stack, append([]byte(nil), ws...))
+
+	if isMultisig && sigCount < m {
+		return fmt.Errorf("psbt: need at least %d signatures for %d-of-%d multisig, got %d", m, m, n, sigCount)
+	}
 
 	// FinalScriptSig = PUSH(redeemScript)
 	in.FinalScriptSig = p.buildScriptSig([][]byte{append([]byte(nil), in.RedeemScript...)})
