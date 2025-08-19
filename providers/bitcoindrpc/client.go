@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/crazycloudcc/btcapis/chain"
-	txpkg "github.com/crazycloudcc/btcapis/tx"
+	"github.com/crazycloudcc/btcapis/script"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
@@ -67,9 +67,10 @@ func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return txpkg.DecodeRawTx(raw)
+	return script.DecodeRawTx(raw)
 }
 
+// 对外门面：广播交易
 func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 	hexRaw := hex.EncodeToString(rawtx)
 	var txid string
@@ -79,6 +80,7 @@ func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 	return txid, nil
 }
 
+// 对外门面：估算交易费率
 func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, error) {
 	// estimatesmartfee 返回 BTC/kB（可能为 null）
 	var resp struct {
@@ -121,6 +123,7 @@ func (c *Client) GetBlock(ctx context.Context, hash string) ([]byte, error) {
 	return hex.DecodeString(hexStr)
 }
 
+// 对外门面：查询 UTXO
 func (c *Client) GetUTXO(ctx context.Context, op types.OutPoint) (*types.UTXO, error) {
 	// 用 gettxout 查询未花费输出
 	var dto struct {

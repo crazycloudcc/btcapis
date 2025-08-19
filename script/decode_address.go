@@ -9,61 +9,106 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// DecodeAddress 函数：解析比特币地址并返回脚本信息
-// 参数：
-//   - addr: 要解析的比特币地址字符串
-//   - params: 区块链网络参数（主网、测试网等）
-//
-// 返回值：
-//   - *ScriptInfo: 解析后的脚本信息结构体
-//   - error: 解析过程中的错误信息
 func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
-
-	// 使用 btcutil.DecodeAddress 自动识别地址格式
-	// 支持：P2PKH(1...)、P2SH(3...)、P2WPKH(bc1q...)、P2WSH(bc1q...32B)、P2TR(bc1p...)
-	a, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
+	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode address: %w", err)
+	}
+	if !decodeAddr.IsForNet(types.CurrentNetworkParams) {
+		return nil, fmt.Errorf("address not for network %s", types.CurrentNetwork)
 	}
 
-	// 创建返回结果结构体
-	ret := &types.AddressScriptInfo{}
-
-	// 使用类型断言判断具体的地址类型，并提取相应信息
-	switch v := a.(type) {
-	case *btcutil.AddressPubKeyHash: // 传统地址格式：1开头的地址
-		ret.ScriptType = types.AddrP2PKH   // 支付到公钥哈希
-		ret.PubKeyHash = v.ScriptAddress() // 获取20字节的公钥哈希
-		ret.WitnessVersion = -1            // -1表示非SegWit地址
-	case *btcutil.AddressScriptHash: // 脚本哈希地址：3开头的地址（包含嵌套SegWit）
-		ret.ScriptType = types.AddrP2SH          // 支付到脚本哈希
-		ret.RedeemScriptHash = v.ScriptAddress() // 获取20字节的赎回脚本哈希
-		ret.WitnessVersion = -1                  // -1表示非SegWit地址
-	case *btcutil.AddressWitnessPubKeyHash: // 原生SegWit地址：bc1q开头的地址
-		ret.ScriptType = types.AddrP2WPKH         // 支付到见证公钥哈希
-		ret.WitnessScriptHash = v.ScriptAddress() // 获取20字节的见证脚本哈希
-		ret.WitnessVersion = 0                    // 见证版本v0
-		ret.WitnessLen = 20                       // 20字节脚本哈希
-	case *btcutil.AddressWitnessScriptHash: // 原生SegWit脚本地址：bc1q开头的32字节地址
-		ret.ScriptType = types.AddrP2WSH          // 支付到见证脚本哈希
-		ret.WitnessScriptHash = v.ScriptAddress() // 获取32字节的见证脚本哈希
-		ret.WitnessVersion = 0                    // 见证版本v0
-		ret.WitnessLen = 32                       // 32字节脚本哈希
-	case *btcutil.AddressTaproot: // Taproot地址：bc1p开头的地址
-		ret.ScriptType = types.AddrP2TR    // 支付到Taproot
-		ret.WitnessVersion = 1             // 见证版本v1
-		ret.WitnessLen = 32                // 32字节脚本哈希
-		ret.TaprootKey = v.ScriptAddress() // 获取32字节的Taproot调整后公钥
-	default:
-		// 如果遇到未处理的地址类型，返回错误
-		return nil, fmt.Errorf("unhandled address type %T", a)
+	// 1) 生成 scriptPubKey
+	pkScript, err := txscript.PayToAddrScript(decodeAddr)
+	if err != nil {
+		return nil, fmt.Errorf("make scriptPubKey: %w", err)
 	}
 
-	printResult(addr, ret)
-	return ret, nil
+	// 2) 分类（模板识别）
+	class, _, _, _ := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
+	stype := class.String()
+
+	// 3) 反汇编
+	asm, _ := txscript.DisasmString(pkScript)
+
+	info := &types.AddressScriptInfo{
+		Address:         addr,
+		Typ:             types.AddressType(stype),
+		ScriptPubKeyHex: pkScript,
+		ScriptAsm:       asm,
+	}
+
+	// 4) 通用：从地址提取底层 “脚本参数”（hash160 / program）
+	scriptParam := decodeAddr.ScriptAddress() // P2PKH/P2SH: 20B 哈希；SegWit：witness program
+
+	switch class {
+	case txscript.PubKeyHashTy:
+		info.PubKeyHashHex = scriptParam // 20B
+	case txscript.ScriptHashTy:
+		info.RedeemScriptHashHex = scriptParam // 20B
+	}
+
+	// 5) SegWit / Taproot 解析 witness version & program
+	// 规范形式：
+	//   v0:   [OP_0  <20|32>    program]
+	//   v1+:  [OP_(1..16) <2..40> program] （Taproot: v=1, 32B）
+	if ver, prog, ok := extractWitness(pkScript); ok {
+		info.IsWitness = true
+		info.WitnessVersion = ver
+		info.WitnessProgramHex = prog
+		info.WitnessProgramLen = len(prog)
+
+		enc := "bech32"
+		if ver >= 1 {
+			enc = "bech32m" // BIP-350
+		}
+		info.BechEncoding = enc
+
+		// Taproot（v=1, 32B）→ 输出 key（x-only）
+		if ver == 1 && len(prog) == 32 {
+			info.Typ = types.AddrP2TR
+			info.TaprootOutputKeyHex = prog
+		}
+	}
+
+	printDecodeAddress(addr, info)
+	return info, nil
 }
 
-func printResult(addr string, info *types.AddressScriptInfo) {
+// 提取 witness version & program；只做规范脚本的快速解析。
+func extractWitness(pk []byte) (version int, program []byte, ok bool) {
+	if len(pk) < 4 {
+		return
+	}
+	// v0: OP_0, v1..16: OP_1..OP_16
+	switch pk[0] {
+	case txscript.OP_0:
+		// 期望：OP_0 <pushlen> <program>
+		if len(pk) < 2 {
+			return
+		}
+		push := int(pk[1])
+		if push < 2 || push > 40 || 2+push != len(pk) {
+			return
+		}
+		return 0, pk[2:], true
+	case txscript.OP_1, txscript.OP_2, txscript.OP_3, txscript.OP_4, txscript.OP_5,
+		txscript.OP_6, txscript.OP_7, txscript.OP_8, txscript.OP_9, txscript.OP_10,
+		txscript.OP_11, txscript.OP_12, txscript.OP_13, txscript.OP_14, txscript.OP_15, txscript.OP_16:
+		if len(pk) < 2 {
+			return
+		}
+		push := int(pk[1])
+		if push < 2 || push > 40 || 2+push != len(pk) {
+			return
+		}
+		return int(pk[0]-txscript.OP_1) + 1, pk[2:], true
+	default:
+		return
+	}
+}
+
+func printDecodeAddress(addr string, info *types.AddressScriptInfo) {
 
 	// txscript.PayToAddrScript 根据地址类型生成相应的锁定脚本
 	decodeAddre, _ := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
@@ -71,14 +116,23 @@ func printResult(addr string, info *types.AddressScriptInfo) {
 
 	// 打印详细的解析结果，便于调试和验证
 	fmt.Printf("Addr2ScriptHash ===================================\n")
+	fmt.Printf("[ScriptPubKey %d] %x\n", len(pkScript), pkScript)
 	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
 	fmt.Printf("[Address] %s\n", addr)
-	fmt.Printf("[AddressType] %s\n", info.ScriptType)
-	fmt.Printf("[ScriptPubKey %d] %x\n", len(pkScript), pkScript)
-	fmt.Printf("[PubKeyHash %d] %x\n", len(info.PubKeyHash), info.PubKeyHash)
-	fmt.Printf("[RedeemScript %d] %x\n", len(info.RedeemScriptHash), info.RedeemScriptHash)
-	fmt.Printf("[WitnessVersion] %x\n", info.WitnessVersion)
-	fmt.Printf("[WitnessScript %d] %x\n", len(info.WitnessScriptHash), info.WitnessScriptHash)
-	fmt.Printf("[TaprootKey %d] %x\n", len(info.TaprootKey), info.TaprootKey)
+	fmt.Printf("[AddressType] %s\n", info.Typ)
+
+	fmt.Printf("[PubKeyHash %d] %x\n", len(info.PubKeyHashHex), info.PubKeyHashHex)
+	fmt.Printf("[RedeemScript %d] %x\n", len(info.RedeemScriptHashHex), info.RedeemScriptHashHex)
+
+	fmt.Printf("[ScriptPubKeyHex %d] %x\n", len(info.ScriptPubKeyHex), info.ScriptPubKeyHex)
+	fmt.Printf("[ScriptAsm] %s\n", info.ScriptAsm)
+
+	fmt.Printf("[IsWitness] %t\n", info.IsWitness)
+	fmt.Printf("[WitnessVersion] %d\n", info.WitnessVersion)
+	fmt.Printf("[WitnessScript %d] %x\n", len(info.WitnessProgramHex), info.WitnessProgramHex)
+	fmt.Printf("[WitnessProgramLen] %d\n", info.WitnessProgramLen)
+	fmt.Printf("[BechEncoding] %s\n", info.BechEncoding)
+
+	fmt.Printf("[TaprootKey %d] %x\n", len(info.TaprootOutputKeyHex), info.TaprootOutputKeyHex)
 	fmt.Printf("Addr2ScriptHash ===================================\n")
 }

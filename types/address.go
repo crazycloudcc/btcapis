@@ -15,7 +15,6 @@ const (
 
 // AddressInfo 结构体：存储地址解析后的信息
 type AddressInfo struct {
-	Network   Network     // 网络
 	Typ       AddressType // 地址类型
 	ReqSigs   int         // 需要签名数（多签时有意义）
 	Addresses []string    // 可能为 0/1/N
@@ -24,11 +23,22 @@ type AddressInfo struct {
 // AddressScriptInfo 结构体：存储地址解析后的脚本信息
 // 包含脚本类型、各种哈希值、见证版本等关键信息
 type AddressScriptInfo struct {
-	ScriptType        AddressType // 脚本类型：P2PKH / P2SH / P2WPKH / P2WSH / P2TR
-	PubKeyHash        []byte      // 公钥哈希：20字节（P2PKH）或32字节（P2TR）
-	RedeemScriptHash  []byte      // 赎回脚本哈希：20字节（P2SH）
-	WitnessScriptHash []byte      // 见证脚本哈希：20字节（P2WPKH）或32字节（P2WSH）
-	WitnessVersion    int         // 见证版本：0（SegWit v0）、1（Taproot）、-1（非SegWit）
-	WitnessLen        int         // 见证数据长度：20字节或32字节
-	TaprootKey        []byte      // Taproot调整后的公钥：32字节
+	Address         string      // 地址
+	Typ             AddressType // 地址类型
+	ScriptPubKeyHex []byte      // 脚本哈希
+	ScriptAsm       string      // 脚本汇编
+
+	// “哈希/程序”层面（地址能直接给出的）
+	PubKeyHashHex       []byte // P2PKH: 20 bytes
+	RedeemScriptHashHex []byte // P2SH:  20 bytes
+
+	// SegWit
+	IsWitness         bool   // 是否为见证地址
+	WitnessVersion    int    // 见证版本：0（SegWit v0）、1（Taproot）、-1（非SegWit）
+	WitnessProgramHex []byte // v0: 20/32 bytes; v1+: 32 bytes
+	WitnessProgramLen int    // 见证数据长度：20字节或32字节
+	BechEncoding      string // bech32 / bech32m
+
+	// Taproot
+	TaprootOutputKeyHex []byte // 等同于 witness program (v=1, 32B x-only pubkey)
 }

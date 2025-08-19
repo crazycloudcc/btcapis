@@ -2,17 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
-	"github.com/crazycloudcc/btcapis/types"
 )
 
 func main() {
 	client := btcapis.BuildClient(
+		"mainnet",
 		"",                      // bitcoind url
 		"",                      // bitcoind user
 		"",                      // bitcoind pass
@@ -60,16 +59,24 @@ func main() {
 	// fmt.Printf("ops: %+v\n", ops)
 	// fmt.Printf("asm: %s\n", asm)
 
-	addr := "1xxxxxxxxxxxxxxxxxxxxxxxxxy1kmdGr" // P2PKH 示例地址
+	// addr := "1xxxxxxxxxxxxxxxxxxxxxxxxxy1kmdGr" // P2PKH 示例地址
 	// addr := "3DHgSaYsxCj62UKU2yFG3vKbwjua3ViHUS"
 	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm"
-	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq"
+	addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq"
 
-	scriptInfo, err := btcapis.GetAddress2ScriptInfo(addr, types.Mainnet.ToParams())
+	scriptInfo, err := btcapis.DecodeAddress(addr)
 	if err != nil {
-		log.Fatalf("GetAddress2ScriptInfo: %v", err)
+		log.Fatalf("DecodeAddress: %v", err)
 	}
 	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
+	fmt.Println("--------------------------------")
+
+	pkScript := scriptInfo.ScriptPubKeyHex
+	addrInfo, err := btcapis.DecodePkScript(pkScript)
+	if err != nil {
+		log.Fatalf("DecodePkScript: %v", err)
+	}
+	fmt.Printf("addrInfo: %+v\n", addrInfo)
 	fmt.Println("--------------------------------")
 
 	confirmed, mempool, err := client.GetAddressBalance(ctx, addr)
@@ -79,12 +86,12 @@ func main() {
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", confirmed, mempool)
 	fmt.Println("--------------------------------")
 
-	utxos, err := client.GetAddressUTXOs(ctx, addr)
-	if err != nil {
-		log.Fatalf("GetAddressUTXOs: %v", err)
-	}
-	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
-	fmt.Println(string(outUtxos))
-	fmt.Println("--------------------------------")
+	// utxos, err := client.GetAddressUTXOs(ctx, addr)
+	// if err != nil {
+	// 	log.Fatalf("GetAddressUTXOs: %v", err)
+	// }
+	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	// fmt.Println(string(outUtxos))
+	// fmt.Println("--------------------------------")
 
 }

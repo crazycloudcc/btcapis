@@ -1,21 +1,36 @@
 package script
 
 import (
+	"fmt"
+
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-func DecodePkScript(pkScript []byte) (types.AddressInfo, error) {
+func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 	cls, addrs, reqSigs, err := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
 	if err != nil {
-		return types.AddressInfo{}, err
+		return nil, err
 	}
-	out := types.AddressInfo{Typ: types.AddressType(cls), ReqSigs: reqSigs}
+	out := &types.AddressInfo{Typ: types.AddressType(cls), ReqSigs: reqSigs}
 	out.Addresses = make([]string, len(addrs))
 	for i, a := range addrs {
 		out.Addresses[i] = a.EncodeAddress()
 	}
+
+	printDecodePkScript(out)
 	return out, nil
+}
+
+func printDecodePkScript(info *types.AddressInfo) {
+
+	// 打印详细的解析结果，便于调试和验证
+	fmt.Printf("Addr2ScriptHash ===================================\n")
+	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
+	fmt.Printf("[AddressType] %s\n", info.Typ)
+	fmt.Printf("[ReqSigs] %d\n", info.ReqSigs)
+	fmt.Printf("[Addresses] %v\n", info.Addresses)
+	fmt.Printf("Addr2ScriptHash ===================================\n")
 }
 
 // // Script2Addr 仅做最小化识别：p2pkh/p2sh/p2wpkh/p2wsh/p2tr，其余返回 "unknown"。

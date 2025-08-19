@@ -14,7 +14,7 @@ func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 }
 
 // 对外门面：使用脚本 解析地址信息
-func DecodePkScript(pkScript []byte) (types.AddressInfo, error) {
+func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 	return script.DecodePkScript(pkScript)
 }
 

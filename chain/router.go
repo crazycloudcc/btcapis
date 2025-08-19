@@ -4,7 +4,7 @@ package chain
 import (
 	"context"
 
-	txpkg "github.com/crazycloudcc/btcapis/tx"
+	"github.com/crazycloudcc/btcapis/script"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
@@ -21,7 +21,7 @@ func (r *Router) GetTransaction(ctx context.Context, txid string) (*types.Tx, er
 	// 1) 首选 raw + 本地解析
 	for _, b := range r.primaries {
 		if raw, err := b.GetRawTransaction(ctx, txid); err == nil && len(raw) > 0 {
-			if t, err := txpkg.DecodeRawTx(raw); err == nil {
+			if t, err := script.DecodeRawTx(raw); err == nil {
 				return t, nil
 			}
 		}
@@ -35,7 +35,7 @@ func (r *Router) GetTransaction(ctx context.Context, txid string) (*types.Tx, er
 	// 3) 再降级：fallback raw + 本地解析
 	for _, b := range r.fallbacks {
 		if raw, err := b.GetRawTransaction(ctx, txid); err == nil && len(raw) > 0 {
-			if t, err := txpkg.DecodeRawTx(raw); err == nil {
+			if t, err := script.DecodeRawTx(raw); err == nil {
 				return t, nil
 			}
 		}
@@ -72,8 +72,12 @@ func (r *Router) EstimateFeeRate(ctx context.Context, target int) (float64, erro
 }
 
 func (r *Router) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
-	// 串行尝试，拿到第一个成功的 txid 即返回（幂等广播）
-	for _, b := range append(r.primaries, r.fallbacks...) {
+	for _, b := range r.primaries {
+		if txid, err := b.Broadcast(ctx, rawtx); err == nil && txid != "" {
+			return txid, nil
+		}
+	}
+	for _, b := range r.fallbacks {
 		if txid, err := b.Broadcast(ctx, rawtx); err == nil && txid != "" {
 			return txid, nil
 		}
