@@ -2,8 +2,6 @@ package btcapis
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/crazycloudcc/btcapis/address"
@@ -11,11 +9,12 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+// 对外门面：使用地址 解析脚本信息
 func GetAddress2ScriptInfo(addr string, params *chaincfg.Params) (*types.AddressScriptInfo, error) {
 	return address.ParseAddress(addr, params)
 }
 
-// GetAddressBalance returns the balance string for an address in format "confirmed(mempool)" in BTC.
+// 对外门面：使用地址 查询余额
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (float64, float64, error) {
 	confirmed, mempool, err := c.addressBalance(ctx, addr)
 	if err != nil {
@@ -24,7 +23,7 @@ func (c *Client) GetAddressBalance(ctx context.Context, addr string) (float64, f
 	return satsToBTC(confirmed), satsToBTC(mempool), nil
 }
 
-// GetAddressUTXOs returns UTXOs belonging to the address.
+// 对外门面：使用地址 查询UTXO
 func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
 	for _, b := range append(c.primaries, c.fallbacks...) {
 		if ar, ok := b.(chain.AddressReader); ok {
@@ -36,6 +35,7 @@ func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO
 	return nil, chain.ErrBackendUnavailable
 }
 
+// 内部实现：使用地址 查询余额
 func (c *Client) addressBalance(ctx context.Context, addr string) (int64, int64, error) {
 	for _, b := range append(c.primaries, c.fallbacks...) {
 		if ar, ok := b.(chain.AddressReader); ok {
@@ -50,17 +50,4 @@ func (c *Client) addressBalance(ctx context.Context, addr string) (int64, int64,
 func satsToBTC(v int64) float64 {
 	f := float64(v) / 1e8
 	return f
-}
-
-func satsToBTCString(v int64) string {
-	sign := ""
-	if v < 0 {
-		sign = "-"
-		v = -v
-	}
-	f := float64(v) / 1e8
-	s := fmt.Sprintf("%.8f", f)
-	s = strings.TrimRight(s, "0")
-	s = strings.TrimRight(s, ".")
-	return sign + s
 }
