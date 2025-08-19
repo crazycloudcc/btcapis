@@ -44,8 +44,8 @@ type txOutJSON struct {
 
 func (in TxIn) MarshalJSON() ([]byte, error) {
 	view := txInJSON{
-		TxID:      in.TxID,
-		Vout:      in.Vout,
+		TxID:      hex.EncodeToString(in.PreviousOutPoint.Hash[:]),
+		Vout:      in.PreviousOutPoint.Index,
 		Sequence:  in.Sequence,
 		ScriptSig: hexOf(in.ScriptSig),
 		Witness:   hexList(in.Witness),
@@ -56,9 +56,9 @@ func (in TxIn) MarshalJSON() ([]byte, error) {
 func (out TxOut) MarshalJSON() ([]byte, error) {
 	view := txOutJSON{
 		Value:        out.Value,
-		ScriptPubKey: hexOf(out.ScriptPubKey),
-		Type:         out.Type,
-		Addresses:    out.Addresses,
+		ScriptPubKey: hexOf(out.PkScript),
+		// Addresses:    out.Address,
+		// Type:         out.Class.String(),
 	}
 	return json.Marshal(view)
 }

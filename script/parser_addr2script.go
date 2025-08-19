@@ -1,5 +1,5 @@
 // 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
-package address
+package script
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// parseAddress 函数：解析比特币地址并返回脚本信息
+// Addr2Script 函数：解析比特币地址并返回脚本信息
 // 参数：
 //   - addr: 要解析的比特币地址字符串
 //   - params: 区块链网络参数（主网、测试网等）
@@ -18,7 +18,7 @@ import (
 // 返回值：
 //   - *ScriptInfo: 解析后的脚本信息结构体
 //   - error: 解析过程中的错误信息
-func ParseAddress(addr string, params *chaincfg.Params) (*types.AddressScriptInfo, error) {
+func Addr2Script(addr string, params *chaincfg.Params) (*types.AddressScriptInfo, error) {
 
 	// 使用 btcutil.DecodeAddress 自动识别地址格式
 	// 支持：P2PKH(1...)、P2SH(3...)、P2WPKH(bc1q...)、P2WSH(bc1q...32B)、P2TR(bc1p...)

@@ -13,13 +13,14 @@ const (
 	AddrUnknown AddressType = "unknown"
 )
 
+// AddressInfo 结构体：存储地址解析后的信息
 type AddressInfo struct {
-	Type         AddressType
-	Network      Network
-	Program      []byte   // witness program 或 hash160，可留空
-	ScriptPubKey []byte   // 若从地址派生可填，否则留空
-	Address      string   // 规范化地址（如果能解析出来）
-	Tags         []string // 可选：额外标记
+	Type         AddressType // 地址类型
+	Network      Network     // 网络
+	Program      []byte      // witness program 或 hash160，可留空
+	ScriptPubKey []byte      // 若从地址派生可填，否则留空
+	Address      string      // 规范化地址(如果能解析出来)
+	Tags         []string    // 可选：额外标记
 }
 
 // AddressScriptInfo 结构体：存储地址解析后的脚本信息
