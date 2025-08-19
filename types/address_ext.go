@@ -315,3 +315,134 @@ func PSBTInputForWitnessUTXO(valueSats int64, scriptPubKey []byte) *wire.TxOut {
 // 5) Taproot：
 //    // Key-path：ex := ExampleUnlockP2TRKeyPath(sig64or65, nil)
 //    // Script-path：ex := ExampleUnlockP2TRScriptPath(args, tapscript, controlBlock, nil)
+
+// --- vsize/weight 估算与序列化尺寸工具 ------------------------------------
+
+// TxBaseSize 返回剥离 witness 后的序列化大小（B）。
+func TxBaseSize(tx *wire.MsgTx) int { return tx.SerializeSizeStripped() }
+
+// TxTotalSize 返回包含 witness 的完整序列化大小（B）。
+func TxTotalSize(tx *wire.MsgTx) int { return tx.SerializeSize() }
+
+// TxWeight 依据 BIP-141：weight = base*3 + total。
+func TxWeight(tx *wire.MsgTx) int {
+	base := TxBaseSize(tx)
+	total := TxTotalSize(tx)
+	return base*3 + total
+}
+
+// TxVSize = ceil(weight/4)。
+func TxVSize(tx *wire.MsgTx) int {
+	w := TxWeight(tx)
+	return (w + 3) / 4
+}
+
+// WeightFromBaseAndWitness: 当你只知道 base_size 与 witness 字节总量时的估算。
+// 注意：包含 witness 的交易还需加上 2 字节的 marker+flag。
+func WeightFromBaseAndWitness(baseSize int, witnessBytes int, hasWitness bool) int {
+	extra := witnessBytes
+	if hasWitness {
+		extra += 2
+	}
+	return baseSize*4 + extra
+}
+
+// VSizeFromWeight 按向上取整规则计算 vsize。
+func VSizeFromWeight(weight int) int { return (weight + 3) / 4 }
+
+// ---- 见证与脚本尺寸估算通用函数 -------------------------------------------
+
+// compactSizeLen 返回 Bitcoin CompactSize(varint) 的长度（B）。
+func compactSizeLen(n int) int {
+	switch {
+	case n < 0xfd:
+		return 1
+	case n <= 0xffff:
+		return 3
+	case n <= 0xffffffff:
+		return 5
+	default:
+		return 9
+	}
+}
+
+// WitnessPushesSize 计算 witness 栈按序列化后的总字节（含项个数 varint + 每项长度 varint）。
+func WitnessPushesSize(lengths ...int) int {
+	size := compactSizeLen(len(lengths))
+	for _, l := range lengths {
+		size += compactSizeLen(l)
+		size += l
+	}
+	return size
+}
+
+// RoughWitnessSizeP2WPKH 估算 P2WPKH witness 大小；sigLen 典型 71~73，pubkey=33。
+func RoughWitnessSizeP2WPKH(sigLen int) int {
+	if sigLen == 0 {
+		sigLen = 73
+	}
+	return WitnessPushesSize(sigLen, 33)
+}
+
+// RoughWitnessSizeP2WSH 估算 P2WSH witness 大小；argsLen 为按顺序的参数字节长度，wscriptLen 为脚本原文字节数。
+func RoughWitnessSizeP2WSH(argsLen []int, wscriptLen int) int {
+	lens := append(append([]int{}, argsLen...), wscriptLen)
+	return WitnessPushesSize(lens...)
+}
+
+// RoughWitnessSizeP2TRKeyPath 估算 P2TR Key-path witness 大小；sigLen=64|65；annexLen 可为 0。
+func RoughWitnessSizeP2TRKeyPath(sigLen, annexLen int) int {
+	lens := []int{sigLen}
+	if annexLen > 0 {
+		lens = append(lens, annexLen)
+	}
+	return WitnessPushesSize(lens...)
+}
+
+// RoughWitnessSizeP2TRScriptPath 估算 P2TR Script-path witness 大小。
+func RoughWitnessSizeP2TRScriptPath(argLens []int, tapscriptLen, controlBlockLen, annexLen int) int {
+	lens := append([]int{}, argLens...)
+	if annexLen > 0 {
+		lens = append(lens, annexLen)
+	}
+	lens = append(lens, tapscriptLen, controlBlockLen)
+	return WitnessPushesSize(lens...)
+}
+
+// BaseInputSize 返回“无 witness 序列化”下单个输入基大小：outpoint(36) + scriptsig varint + scriptsig + sequence(4)。
+func BaseInputSize(scriptSigLen int) int { return 36 + compactSizeLen(scriptSigLen) + scriptSigLen + 4 }
+
+// TxOutSize: amount(8) + pkScript varint + pkScript。
+func TxOutSize(pkScriptLen int) int { return 8 + compactSizeLen(pkScriptLen) + pkScriptLen }
+
+// --- Tapscript 多签（CHECKSIGADD 阈值）构造器 ------------------------------
+
+// Tapscript_ThresholdCHECKSIGADD 生成 k-of-n 的阈值脚本：
+// OP_0; for each pub: <pub> OP_CHECKSIGADD; <k> OP_NUMEQUAL
+// 见证侧应为每个 pubkey 提供一个签名（或空字节表示 0），顺序与 pubkeys 对应。
+func Tapscript_ThresholdCHECKSIGADD(pubkeys [][]byte, k int64) ([]byte, error) {
+	if len(pubkeys) == 0 {
+		return nil, errors.New("no pubkeys")
+	}
+	if k <= 0 || int(k) > len(pubkeys) {
+		return nil, fmt.Errorf("invalid k: %d", k)
+	}
+	b := txscript.NewScriptBuilder().AddOp(txscript.OP_0)
+	for _, pk := range pubkeys {
+		b.AddData(pk).AddOp(txscript.OP_CHECKSIGADD)
+	}
+	b.AddInt64(k).AddOp(txscript.OP_NUMEQUAL)
+	return b.Script()
+}
+
+// ExampleUnlock_TapThresholdWitness 依据给定签名（或空字节）顺序，组织 Script-path 的 witness。
+// 注意：signatures 的长度必须与 pubkeys 数量一致；用空切片表示某个 pub 没有签名。
+func ExampleUnlock_TapThresholdWitness(signatures [][]byte, tapscript []byte, controlBlock []byte) UnlockExample {
+	w := make(wire.TxWitness, 0, len(signatures)+2)
+	for _, s := range signatures {
+		w = append(w, s)
+	}
+	w = append(w, tapscript)
+	w = append(w, controlBlock)
+	return UnlockExample{Witness: w}
+}
