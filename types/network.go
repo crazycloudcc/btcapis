@@ -2,6 +2,8 @@
 // 包含比特币网络节点信息、连接状态、网络统计等网络层相关的数据结构
 package types
 
+import "github.com/btcsuite/btcd/chaincfg"
+
 type Network string
 
 const (
@@ -10,3 +12,18 @@ const (
 	Signet  Network = "signet"
 	Regtest Network = "regtest"
 )
+
+func (n Network) ToParams() *chaincfg.Params {
+	switch n {
+	case Mainnet:
+		return &chaincfg.MainNetParams
+	case Testnet:
+		return &chaincfg.TestNet3Params
+	case Signet:
+		return &chaincfg.SigNetParams
+	case Regtest:
+		return &chaincfg.RegressionNetParams
+	default:
+		return nil
+	}
+}

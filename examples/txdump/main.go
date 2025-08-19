@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 func main() {
@@ -71,6 +72,13 @@ func main() {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", confirmed, mempool)
+	fmt.Println("--------------------------------")
+
+	scriptInfo, err := btcapis.GetAddress2ScriptInfo(addr, types.Mainnet.ToParams())
+	if err != nil {
+		log.Fatalf("GetAddress2ScriptInfo: %v", err)
+	}
+	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
 	fmt.Println("--------------------------------")
 
 }
