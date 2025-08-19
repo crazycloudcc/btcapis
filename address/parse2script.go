@@ -72,8 +72,8 @@ func printResult(addr string, info *types.AddressScriptInfo, network *chaincfg.P
 
 	// 打印详细的解析结果，便于调试和验证
 	fmt.Printf("Addr2ScriptHash ===================================\n")
-	fmt.Printf("[查询地址] %s\n", addr)
-	fmt.Printf("[地址类型] %s\n", info.ScriptType)
+	fmt.Printf("[Address] %s\n", addr)
+	fmt.Printf("[AddressType] %s\n", info.ScriptType)
 	fmt.Printf("[ScriptPubKey %d] %x\n", len(pkScript), pkScript)
 	fmt.Printf("[PubKeyHash %d] %x\n", len(info.PubKeyHash), info.PubKeyHash)
 	fmt.Printf("[RedeemScript %d] %x\n", len(info.RedeemScriptHash), info.RedeemScriptHash)

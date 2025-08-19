@@ -1,9 +1,10 @@
-// Package types 提供跨模块共享的轻量类型定义
 package types
 
+// AddressType 标注常见地址/脚本族群。
 type AddressType string
 
 const (
+	AddrP2PK    AddressType = "p2pk"
 	AddrP2PKH   AddressType = "p2pkh"
 	AddrP2SH    AddressType = "p2sh"
 	AddrP2WPKH  AddressType = "p2wpkh"
