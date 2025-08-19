@@ -2,6 +2,7 @@ package mempoolspace
 
 import (
 	"context"
+	"encoding/hex"
 	"path"
 
 	"github.com/crazycloudcc/btcapis/types"
@@ -47,13 +48,13 @@ func (c *Client) AddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, e
 	}
 	utxos := make([]types.UTXO, 0, len(dtos))
 	for _, d := range dtos {
+		txidBytes, _ := hex.DecodeString(d.Txid)
 		u := types.UTXO{
-			OutPoint: types.OutPoint{Hash: d.Txid, N: d.Vout},
+			OutPoint: types.OutPoint{Hash: types.Hash32(txidBytes), Index: d.Vout},
 			Value:    d.Value,
 		}
 		if d.Status.Confirmed {
-			u.Height = d.Status.BlockHeight
-			u.Confirmations = 1
+			u.Height = uint32(d.Status.BlockHeight)
 		}
 		utxos = append(utxos, u)
 	}

@@ -55,7 +55,8 @@ func newClient(opts ...option) *Client {
 }
 
 // BuildClient 根据配置构建 Client
-func BuildClient(bitcoindUrl, bitcoindUser, bitcoindPass, mempoolBaseUrl string) *Client {
+func BuildClient(network string, bitcoindUrl, bitcoindUser, bitcoindPass, mempoolBaseUrl string) *Client {
+	types.SetCurrentNetwork(network)
 	opts := make([]option, 0, 2)
 	if bitcoindUrl != "" {
 		opts = append(opts, WithBitcoindRPC(bitcoindUrl, bitcoindUser, bitcoindPass))

@@ -10,10 +10,10 @@ import (
 
 // AnalyzeInput 解析某个输入的 witness/script 为 OP code 列表；仅在需要时调用。
 func AnalyzeTxInWithIdx(t *types.Tx, idx int) (*types.TapscriptInfo, error) {
-	if idx < 0 || idx >= len(t.Vin) {
+	if idx < 0 || idx >= len(t.TxIn) {
 		return nil, fmt.Errorf("vin index out of range")
 	}
-	in := t.Vin[idx]
+	in := t.TxIn[idx]
 
 	return AnalyzeTxIn(t, &in)
 }

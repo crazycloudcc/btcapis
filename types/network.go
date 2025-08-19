@@ -13,6 +13,14 @@ const (
 	Regtest Network = "regtest"
 )
 
+var CurrentNetwork Network = Mainnet
+var CurrentNetworkParams *chaincfg.Params = &chaincfg.MainNetParams
+
+func SetCurrentNetwork(net string) {
+	CurrentNetwork = Network(net)
+	CurrentNetworkParams = CurrentNetwork.ToParams()
+}
+
 func (n Network) ToParams() *chaincfg.Params {
 	switch n {
 	case Mainnet:

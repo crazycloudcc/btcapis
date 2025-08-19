@@ -61,13 +61,13 @@ func DisasmScript(b []byte) (ops []types.ScriptOp, asm string, err error) {
 			data := b[i : i+n]
 			i += n
 			h := hex.EncodeToString(data)
-			out = append(out, types.ScriptOp{Op: parseOpCode(op), DataHex: h, DataLen: n})
+			out = append(out, types.ScriptOp{Op: types.OpcodeName(op), DataHex: h, DataLen: n})
 			asmParts = append(asmParts, h)
 			continue
 		}
 
 		// 常规 opcode
-		nm := parseOpCode(op)
+		nm := types.OpcodeName(op)
 		out = append(out, types.ScriptOp{Op: nm})
 		asmParts = append(asmParts, nm)
 	}

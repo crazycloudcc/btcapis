@@ -1,84 +1,80 @@
-// // Package types 交易相关类型定义
 package types
 
-// // Tx 交易结构体
-// type Tx struct {
-// 	TxID     string // 交易哈希
-// 	Version  int32  // 交易版本
-// 	LockTime uint32 // 交易锁定时间
-// 	Weight   int64  // 交易权重
-// 	Vsize    int64  // 交易大小
+// Hash32 是 32 字节哈希（双 SHA256 结果）。注意：序列化写入时通常按小端。
+type Hash32 [32]byte
 
-// 	Inputs  []TxIn  // 交易输入
-// 	Outputs []TxOut // 交易输出
-// }
+// VarInt 序列化时采用比特币可变长度整型编码；此处仅作标注，实际可直接用 uint64 并在编解码层处理。
+type VarInt = uint64
 
-// // TxIn 交易输入结构体
-// type TxIn struct {
-// 	TxID      string   // 交易哈希
-// 	Vout      uint32   // 交易输出索引
-// 	Sequence  uint32   // 交易序列号
-// 	ScriptSig []byte   // 交易输入脚本
-// 	Witness   [][]byte // 交易见证
+// OutPoint 唯一标识一个已存在的交易输出：<txid, vout>
+type OutPoint struct {
+	Hash  Hash32 // 上一笔交易的 txid（逻辑上大端显示；写入时小端序）
+	Index uint32 // vout 索引，从 0 开始
+}
 
-// 	// 可选：解析出的 scriptSig/witness 语义字段
-// }
+// TxWitness 是 SegWit 的 per-input 见证栈；外层是项数量，内层每项为原始字节。
+type TxWitness [][]byte
 
-// // TxOut 交易输出结构体
-// type TxOut struct {
-// 	TxID         string   // 交易哈希
-// 	Vout         uint32   // 交易输出索引
-// 	Value        int64    // sats
-// 	ScriptPubKey []byte   // 交易输出脚本
-// 	Type         string   // p2pkh/p2sh/p2wpkh/p2wsh/p2tr/...
-// 	Addresses    []string // 交易输出地址
-// }
+// Tx：完整的交易对象（不显式包含 marker/flag 字段；是否为 segwit 由 TxIn[].Witness 是否存在决定）
+// 序列化顺序（无见证）：Version | vinCount | vin[...] | voutCount | vout[...] | LockTime
+// 序列化顺序（有见证）：Version | 0x00 | 0x01 | vinCount | vin[...] | voutCount | vout[...] | witnesses(for each vin) | LockTime
+type Tx struct {
+	Version  int32   // 交易版本
+	LockTime uint32  // 交易锁定时间
+	TxIn     []TxIn  // 交易输入
+	TxOut    []TxOut // 交易输出
+	// 非序列化辅助字段（可选）：
+	// CachedTxID  Hash32
+	// CachedWtxID Hash32
+}
 
-// // UTXO 统一的未花费输出表示，供各 provider 返回给上层使用。
-// // 这里只放通用字段；如需更多信息（确认数、是否 coinbase、区块高度等），
-// // 可按需追加可选字段，保持向后兼容。
-// type UTXO struct {
-// 	Output       TxOut  // 交易哈希 + vout 索引
-// 	Value        int64  // 金额（sats）
-// 	ScriptPubKey []byte // 输出脚本（spk）
+// TxIn：交易输入
+// - PreviousOutPoint：被花费的 UTXO 引用
+// - ScriptSig：非隔离见证路径下的解锁脚本（如 P2PKH 的 <sig><pubkey> 等）
+// - Sequence：nSequence；影响 RBF（<0xffffffff-1）与 CSV；默认 0xffffffff
+// - Witness：隔离见证路径下的见证栈（P2WPKH/P2WSH/P2TR 等）
+type TxIn struct {
+	PreviousOutPoint OutPoint  // 上一笔交易的输出点
+	Sequence         uint32    // 交易序列号
+	ScriptSig        []byte    // scriptSig
+	Witness          TxWitness // 若任一输入 Witness 非空，序列化需写入 marker/flag，并在所有 TxOut 之后写入全部 Witness
+}
 
-// 	// 可选元数据（provider 有就填；没有就留默认值）
-// 	Height        int64 // 包含此 UTXO 的区块高度；未确认可为 0 或 -1
-// 	Confirmations int64 // 确认数；未确认为 0
-// 	Coinbase      bool  // 是否来自 coinbase 交易
+// TxOut：交易输出
+// - Value：satoshi 数（int64，允许负数编码但务必在业务层校验非负）
+// - PkScript：锁定脚本（scriptPubKey），如 P2PKH 的 OP_DUP OP_HASH160 <20b> OP_EQUALVERIFY OP_CHECKSIG
+type TxOut struct {
+	Value      int64  // satoshi
+	PkScript   []byte // scriptPubKey
+	ScriptType string // 可选, 用于显示 解析出的脚本类别
+	Address    string // 可选, 用于显示 解析得到的人类可读地址
+}
 
-// 	// 用户创建交易时使用
-// 	TxID       string // 交易哈希
-// 	Vout       uint32 // 交易输出索引
-// 	ScriptType string // p2pkh/p2sh/p2wpkh/p2wsh/p2tr/...
-// }
+// ScriptClass 描述常见脚本类型（可选，用于索引/解析层；不是共识必须）
+type ScriptClass uint8
 
-// // Output 交易输出结构体
-// type Output struct {
-// 	Address string // 或者你也可以扩展支持 ScriptPubKey
-// 	Value   int64  // sats
-// }
+const (
+	ScriptNonStandard         ScriptClass = iota
+	ScriptPubKey                          // P2PK (老式)
+	ScriptPubKeyHash                      // P2PKH
+	ScriptScriptHash                      // P2SH
+	ScriptWitnessV0PubKeyHash             // P2WPKH
+	ScriptWitnessV0ScriptHash             // P2WSH
+	ScriptWitnessV1Taproot                // P2TR (BIP341)
+)
 
-// // BuildTxRequest 构建交易请求结构体
-// type BuildTxRequest struct {
-// 	Network         Network  // 网络
-// 	Inputs          []UTXO   // 输入
-// 	Outputs         []Output // 输出
-// 	ChangeAddress   string   // 找零地址
-// 	FeeRateSatPerVb float64  // <=0 时使用后端估算/兜底
-// 	EnableRBF       bool     // 默认 true
-// 	LockTime        uint32   // 默认为0
-// 	MinChange       int64    // <该值就并入手续费（避免尘埃找零），默认 0
-// 	DustLimit       int64    // 默认 546（可按脚本类型细化）
-// 	SighashType     uint32   // 缺省 SIGHASH_ALL
-// }
-
-// // BuildTxResult 构建交易结果结构体
-// type BuildTxResult struct {
-// 	UnsignedTxHex string // 未签名交易
-// 	PSBTBase64    string // 部分签名交易
-// 	SelectedUTXO  []UTXO // 选中的输入
-// 	VSizeEstimate int64  // 交易大小估计
-// 	FeePaid       int64  // 手续费
-// 	ChangeValue   int64  // 找零金额
-// }
+// UTXO：钱包/索引层常用的未花费输出结构（**链上共识并不定义该结构**，这是应用层抽象）
+type UTXO struct {
+	OutPoint OutPoint    // 定位该 UTXO
+	Value    int64       // satoshi
+	PkScript []byte      // 原始 scriptPubKey
+	Height   uint32      // 产出该 UTXO 的区块高度；mempool 可置 0 或特约定值
+	Coinbase bool        // 该 UTXO 是否来自 coinbase 交易
+	Address  string      // 解析得到的人类可读地址（可选）
+	Class    ScriptClass // 解析出的脚本类别（可选）
+	// 额外可选元数据（根据业务需要扩展）：
+	// Confirmations uint32
+	// ScriptVersion uint16   // 保留位；目前主网 script 版本固定
+	// Timestamp     int64    // 区块时间或首次见到时间（秒）
+	// Spendable     bool     // 钱包层权限或策略控制
+}

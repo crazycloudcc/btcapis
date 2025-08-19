@@ -13,7 +13,7 @@ import (
 // Witnesses that cannot be parsed are silently ignored.
 func ExtractBRC20(t *types.Tx) []types.BRC20Action {
 	var actions []types.BRC20Action
-	for i := range t.Vin {
+	for i := range t.TxIn {
 		info, err := AnalyzeTxInWithIdx(t, i)
 		if err != nil || info.Ord == nil || info.Ord.BodyHex == "" {
 			continue
@@ -57,8 +57,8 @@ func ExtractBRC20(t *types.Tx) []types.BRC20Action {
 // The raw payload hex is returned for further processing by callers.
 func ExtractRunes(t *types.Tx) []types.Runestone {
 	var stones []types.Runestone
-	for _, o := range t.Vout {
-		payload, ok := opReturnPayload(o.ScriptPubKey)
+	for _, o := range t.TxOut {
+		payload, ok := opReturnPayload(o.PkScript)
 		if !ok || len(payload) == 0 {
 			continue
 		}

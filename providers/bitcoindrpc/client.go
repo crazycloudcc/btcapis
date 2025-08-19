@@ -129,7 +129,7 @@ func (c *Client) GetUTXO(ctx context.Context, op types.OutPoint) (*types.UTXO, e
 			Hex string `json:"hex"`
 		} `json:"scriptPubKey"`
 	}
-	if err := c.rpcCall(ctx, "gettxout", []any{op.Hash, op.N, true}, &dto); err != nil {
+	if err := c.rpcCall(ctx, "gettxout", []any{op.Hash, op.Index, true}, &dto); err != nil {
 		return nil, err
 	}
 	if dto.ScriptPubKey.Hex == "" {
@@ -137,9 +137,9 @@ func (c *Client) GetUTXO(ctx context.Context, op types.OutPoint) (*types.UTXO, e
 	}
 	spk, _ := hex.DecodeString(dto.ScriptPubKey.Hex)
 	return &types.UTXO{
-		OutPoint:     op,
-		Value:        int64(dto.Value * 1e8),
-		ScriptPubKey: spk,
+		OutPoint: op,
+		Value:    int64(dto.Value * 1e8),
+		PkScript: spk,
 	}, nil
 }
 

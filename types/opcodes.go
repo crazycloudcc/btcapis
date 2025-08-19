@@ -1,4 +1,4 @@
-package script
+package types
 
 import (
 	"fmt"
@@ -6,8 +6,15 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 )
 
+// ScriptOp 表示一条脚本指令；若为数据推送，DataHex/DataLen 会被填充。
+type ScriptOp struct {
+	Op      string `json:"op"`                 // 操作码
+	DataHex string `json:"data_hex,omitempty"` // 数据十六进制
+	DataLen int    `json:"data_len,omitempty"` // 数据长度
+}
+
 // 将 opcode 映射为可读名称
-func parseOpCode(op byte) string {
+func OpcodeName(op byte) string {
 	switch {
 	case op >= 0x01 && op <= 0x4b:
 		// 1..75 字节的直接推送

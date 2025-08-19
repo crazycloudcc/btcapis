@@ -1,11 +1,9 @@
-// tx/decoder.go
-package tx
+package script
 
 import (
 	"bytes"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/crazycloudcc/btcapis/script"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
@@ -38,29 +36,17 @@ func DecodeRawTx(raw []byte) (*types.Tx, error) {
 
 	for i, o := range m.TxOut {
 		spk := append([]byte(nil), o.PkScript...)
-		typ, addrs := script.Classify(spk)
+		addrInfo, err := DecodePkScript(spk)
+		if err != nil {
+			return nil, err
+		}
 		t.TxOut[i] = types.TxOut{
 			Value:      o.Value,
 			PkScript:   spk,
-			ScriptType: typ,
-			Address:    addrs[0],
+			ScriptType: string(addrInfo.Typ),
+			Address:    addrInfo.Addresses[0],
 		}
 	}
 
 	return t, nil
-}
-
-func computeWeightVSize(m *wire.MsgTx) (int64, int64) {
-	var wbuf bytes.Buffer
-	_ = m.Serialize(&wbuf) // 含 witness
-	total := wbuf.Len()
-
-	var sbuf bytes.Buffer
-	_ = m.SerializeNoWitness(&sbuf) // 去除 witness
-	stripped := sbuf.Len()
-
-	witness := total - stripped
-	weight := int64(stripped*4 + witness)
-	vsize := (weight + 3) / 4 // 向上取整
-	return weight, vsize
 }

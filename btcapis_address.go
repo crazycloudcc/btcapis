@@ -3,15 +3,19 @@ package btcapis
 import (
 	"context"
 
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/crazycloudcc/btcapis/address"
 	"github.com/crazycloudcc/btcapis/chain"
+	"github.com/crazycloudcc/btcapis/script"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
 // 对外门面：使用地址 解析脚本信息
-func GetAddress2ScriptInfo(addr string, params *chaincfg.Params) (*types.AddressScriptInfo, error) {
-	return address.ParseAddress(addr, params)
+func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
+	return script.DecodeAddress(addr)
+}
+
+// 对外门面：使用脚本 解析地址信息
+func DecodePkScript(pkScript []byte) (types.AddressInfo, error) {
+	return script.DecodePkScript(pkScript)
 }
 
 // 对外门面：使用地址 查询余额

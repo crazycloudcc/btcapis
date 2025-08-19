@@ -9,13 +9,10 @@ import (
 
 func mapTxDTO(d TxDTO) *types.Tx {
 	t := &types.Tx{
-		TxID:     d.Txid,
 		Version:  d.Version,
 		LockTime: d.Locktime,
-		Weight:   d.Weight,
-		Vsize:    (d.Weight + 3) / 4,
-		Vin:      make([]types.TxIn, len(d.Vin)),
-		Vout:     make([]types.TxOut, len(d.Vout)),
+		TxIn:     make([]types.TxIn, len(d.Vin)),
+		TxOut:    make([]types.TxOut, len(d.Vout)),
 	}
 	for i, in := range d.Vin {
 		w := make([][]byte, len(in.Witness))
@@ -27,12 +24,13 @@ func mapTxDTO(d TxDTO) *types.Tx {
 		if in.Scriptsig != "" {
 			ss, _ = hex.DecodeString(in.Scriptsig)
 		}
-		t.Vin[i] = types.TxIn{
-			TxID:      in.Txid,
-			Vout:      in.Vout,
-			Sequence:  in.Sequence,
-			ScriptSig: ss,
-			Witness:   w,
+
+		txidBytes, _ := hex.DecodeString(in.Txid)
+		t.TxIn[i] = types.TxIn{
+			PreviousOutPoint: types.OutPoint{Hash: types.Hash32(txidBytes), Index: in.Vout},
+			Sequence:         in.Sequence,
+			ScriptSig:        ss,
+			Witness:          w,
 		}
 	}
 	for i, out := range d.Vout {
@@ -41,11 +39,11 @@ func mapTxDTO(d TxDTO) *types.Tx {
 		if out.Address != "" {
 			addrs = []string{out.Address}
 		}
-		t.Vout[i] = types.TxOut{
-			Value:        out.Value,
-			ScriptPubKey: spk,
-			Type:         out.ScriptType,
-			Addresses:    addrs,
+		t.TxOut[i] = types.TxOut{
+			Value:      out.Value,
+			PkScript:   spk,
+			ScriptType: out.ScriptType,
+			Address:    addrs[0],
 		}
 	}
 	return t
