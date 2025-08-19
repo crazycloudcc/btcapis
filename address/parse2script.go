@@ -1,5 +1,5 @@
 // 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
-package btcdapis
+package address
 
 import (
 	"fmt"

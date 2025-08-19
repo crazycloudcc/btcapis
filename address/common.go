@@ -1,5 +1,5 @@
 // 提供一些通用的解析函数
-package btcdapis
+package address
 
 import (
 	"encoding/asn1"
