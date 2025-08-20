@@ -4,23 +4,26 @@ package types
 
 import "github.com/btcsuite/btcd/chaincfg"
 
+// Network 网络类型
 type Network string
 
 const (
-	Mainnet Network = "mainnet"
-	Testnet Network = "testnet"
-	Signet  Network = "signet"
-	Regtest Network = "regtest"
+	Mainnet Network = "mainnet" // 主网
+	Testnet Network = "testnet" // 测试网
+	Signet  Network = "signet"  // 签名网
+	Regtest Network = "regtest" // 回归测试网
 )
 
-var CurrentNetwork Network = Mainnet
-var CurrentNetworkParams *chaincfg.Params = &chaincfg.MainNetParams
+var CurrentNetwork Network = Mainnet                                // 当前网络
+var CurrentNetworkParams *chaincfg.Params = &chaincfg.MainNetParams // 当前网络参数
 
+// SetCurrentNetwork 设置当前网络
 func SetCurrentNetwork(net string) {
 	CurrentNetwork = Network(net)
 	CurrentNetworkParams = CurrentNetwork.ToParams()
 }
 
+// ToParams 将网络转换为网络参数
 func (n Network) ToParams() *chaincfg.Params {
 	switch n {
 	case Mainnet:

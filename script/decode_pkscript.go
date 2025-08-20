@@ -12,7 +12,7 @@ func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &types.AddressInfo{Typ: types.AddressType(cls), ReqSigs: reqSigs}
+	out := &types.AddressInfo{PKScript: pkScript, Typ: types.AddressType(cls), ReqSigs: reqSigs}
 	out.Addresses = make([]string, len(addrs))
 	for i, a := range addrs {
 		out.Addresses[i] = a.EncodeAddress()
@@ -24,9 +24,17 @@ func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 
 func printDecodePkScript(info *types.AddressInfo) {
 
+	ops, asm, err := DisasmScript(info.PKScript)
+	if err != nil {
+		fmt.Printf("[DisasmScript] %s\n", err)
+	}
+
 	// 打印详细的解析结果，便于调试和验证
 	fmt.Printf("Addr2ScriptHash ===================================\n")
 	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
+	fmt.Printf("[PKScript] %x\n", info.PKScript)
+	fmt.Printf("[DisasmScriptOps] %v\n", ops)
+	fmt.Printf("[DisasmScript] %s\n", asm)
 	fmt.Printf("[AddressType] %s\n", info.Typ)
 	fmt.Printf("[ReqSigs] %d\n", info.ReqSigs)
 	fmt.Printf("[Addresses] %v\n", info.Addresses)

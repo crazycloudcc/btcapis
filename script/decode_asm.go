@@ -8,6 +8,10 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+// func DecodeAsmScript(pkScript []byte) (ops []types.ScriptOp, asm string, err error) {
+// 	txscript.DisasmString()
+// }
+
 // DisasmScript 将原始脚本字节反汇编为 ops + ASM 字符串；遇到非法 push 会返回错误。
 func DisasmScript(b []byte) (ops []types.ScriptOp, asm string, err error) {
 	var out []types.ScriptOp

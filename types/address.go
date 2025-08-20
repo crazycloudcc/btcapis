@@ -15,6 +15,7 @@ const (
 
 // AddressInfo 结构体：存储地址解析后的信息
 type AddressInfo struct {
+	PKScript  []byte      // 原始脚本
 	Typ       AddressType // 地址类型
 	ReqSigs   int         // 需要签名数（多签时有意义）
 	Addresses []string    // 可能为 0/1/N

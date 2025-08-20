@@ -114,9 +114,17 @@ func printDecodeAddress(addr string, info *types.AddressScriptInfo) {
 	decodeAddre, _ := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
 	pkScript, _ := txscript.PayToAddrScript(decodeAddre)
 
+	ops, asm, err := DisasmScript(pkScript)
+	if err != nil {
+		fmt.Printf("[DisasmScript] %s\n", err)
+	}
+
 	// 打印详细的解析结果，便于调试和验证
 	fmt.Printf("Addr2ScriptHash ===================================\n")
-	fmt.Printf("[ScriptPubKey %d] %x\n", len(pkScript), pkScript)
+	fmt.Printf("[pkScript %d] %x\n", len(pkScript), pkScript)
+	fmt.Printf("[DisasmScriptOps] %v\n", ops)
+	fmt.Printf("[DisasmScript] %s\n", asm)
+
 	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
 	fmt.Printf("[Address] %s\n", addr)
 	fmt.Printf("[AddressType] %s\n", info.Typ)
@@ -124,7 +132,7 @@ func printDecodeAddress(addr string, info *types.AddressScriptInfo) {
 	fmt.Printf("[PubKeyHash %d] %x\n", len(info.PubKeyHashHex), info.PubKeyHashHex)
 	fmt.Printf("[RedeemScript %d] %x\n", len(info.RedeemScriptHashHex), info.RedeemScriptHashHex)
 
-	fmt.Printf("[ScriptPubKeyHex %d] %x\n", len(info.ScriptPubKeyHex), info.ScriptPubKeyHex)
+	fmt.Printf("[ScriptPubKeyHex(pkScript) %d] %x\n", len(info.ScriptPubKeyHex), info.ScriptPubKeyHex)
 	fmt.Printf("[ScriptAsm] %s\n", info.ScriptAsm)
 
 	fmt.Printf("[IsWitness] %t\n", info.IsWitness)
