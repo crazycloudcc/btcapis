@@ -10,12 +10,11 @@ import (
 )
 
 func main() {
-	client := btcapis.BuildClient(
+	client := btcapis.NewClient(
 		"mainnet",
-		"",                      // bitcoind url
-		"",                      // bitcoind user
-		"",                      // bitcoind pass
-		"https://mempool.space", // https://mempool.space/signet
+		"", // bitcoind url
+		"", // bitcoind user
+		"", // bitcoind pass
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -64,7 +63,7 @@ func main() {
 	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm" // P2WPKH 示例地址
 	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq" // P2TR 示例地址
 
-	scriptInfo, err := btcapis.DecodeAddress(addr)
+	scriptInfo, err := client.DecodeAddress(addr)
 	if err != nil {
 		log.Fatalf("DecodeAddress: %v", err)
 	}
@@ -72,18 +71,18 @@ func main() {
 	fmt.Println("--------------------------------")
 
 	pkScript := scriptInfo.ScriptPubKeyHex
-	addrInfo, err := btcapis.DecodePkScript(pkScript)
+	addrInfo, err := client.DecodePkScript(pkScript)
 	if err != nil {
 		log.Fatalf("DecodePkScript: %v", err)
 	}
 	fmt.Printf("addrInfo: %+v\n", addrInfo)
 	fmt.Println("--------------------------------")
 
-	confirmed, mempool, err := client.GetAddressBalance(ctx, addr)
+	confirmed, mempool, err := client.AddressBalance(ctx, addr)
 	if err != nil {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
-	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", confirmed, mempool)
+	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
 	// utxos, err := client.GetAddressUTXOs(ctx, addr)
