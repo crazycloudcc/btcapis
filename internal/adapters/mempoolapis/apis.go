@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 func GetRawTx(ctx context.Context, txid string) ([]byte, error) {
@@ -67,24 +65,26 @@ func GetAddressBalance(ctx context.Context, addr string) (int64, int64, error) {
 }
 
 // 获取地址 UTXO
-func GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
+func GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
 	u := *config.base
 	u.Path = path.Join(u.Path, "/api/address/", addr, "/utxo")
 	var dtos []UTXODTO
 	if err := getJSON(ctx, u.String(), &dtos); err != nil {
 		return nil, err
 	}
-	utxos := make([]types.UTXO, 0, len(dtos))
-	for _, d := range dtos {
-		txidBytes, _ := hex.DecodeString(d.Txid)
-		u := types.UTXO{
-			OutPoint: types.OutPoint{Hash: types.Hash32(txidBytes), Index: d.Vout},
-			Value:    d.Value,
-		}
-		if d.Status.Confirmed {
-			u.Height = uint32(d.Status.BlockHeight)
-		}
-		utxos = append(utxos, u)
-	}
-	return utxos, nil
+	return dtos, nil
+
+	// utxos := make([]types.UTXO, 0, len(dtos))
+	// for _, d := range dtos {
+	// 	txidBytes, _ := hex.DecodeString(d.Txid)
+	// 	u := types.UTXO{
+	// 		OutPoint: types.OutPoint{Hash: types.Hash32(txidBytes), Index: d.Vout},
+	// 		Value:    d.Value,
+	// 	}
+	// 	if d.Status.Confirmed {
+	// 		u.Height = uint32(d.Status.BlockHeight)
+	// 	}
+	// 	utxos = append(utxos, u)
+	// }
+	// return utxos, nil
 }

@@ -29,9 +29,19 @@ func Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 // func GetAddressBalance(ctx context.Context, addr string) (int64, int64, error) {
 // }
 
-// // 查询钱包UTXO集
-// func GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
-// }
+// 查询钱包UTXO集
+func GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
+	// scantxoutset "start" [ scanobjects ] ; 直接用 addr() 描述符
+	params := []interface{}{"start", []interface{}{fmt.Sprintf("addr(%s)", addr)}}
+	var res scanResult
+	if err := rpcCall(ctx, "scantxoutset", params, &res); err != nil {
+		return nil, err
+	}
+	if !res.Success {
+		return nil, fmt.Errorf("scantxoutset failed")
+	}
+	return res.Unspents, nil
+}
 
 // 查询 UTXO
 func GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, error) {

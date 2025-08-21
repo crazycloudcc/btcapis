@@ -2,21 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
-	"github.com/crazycloudcc/btcapis/internal/decoders"
 )
 
 func main() {
 	btcapis.Init(
 		"mainnet",
-		"", // bitcoind url
-		"", // bitcoind user
-		"", // bitcoind pass
-		10, // 超时时间(秒)
+		"http://192.168.1.16:8332", // bitcoind url
+		"cc",                       // bitcoind user
+		"ccc",                      // bitcoind pass
+		10,                         // 超时时间(秒)
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -33,49 +33,22 @@ func main() {
 	// fmt.Printf("元数据 raw: %x\n", raw)
 	// fmt.Println("--------------------------------")
 
-	// tx, err := client.GetTransaction(ctx, txid)
-	// if err != nil {
-	// 	log.Fatalf("GetTransaction: %v", err)
-	// }
-	// outTx, _ := json.MarshalIndent(tx, "", "  ")
-	// fmt.Println(string(outTx))
-	// fmt.Println("--------------------------------")
-
-	// // 解析输入
-	// if tx.Vin != nil && len(tx.Vin) > 0 {
-	// 	for i, in := range tx.Vin {
-	// 		info, err := btcapis.Tx.AnalyzeTxIn(tx, &in)
-	// 		if err != nil {
-	// 			log.Fatalf("AnalyzeTxIn: %v", err)
-	// 		}
-
-	// 		out, _ := json.MarshalIndent(info, "", "  ")
-	// 		fmt.Println("-------------------------------- index: ", i)
-	// 		fmt.Println(string(out))
-	// 		fmt.Println("--------------------------------")
-	// 	}
-	// }
-
-	// ops, asm, _ := btcapis.Tx.DisasmScriptPubKey(tx, 0)
-	// fmt.Printf("ops: %+v\n", ops)
-	// fmt.Printf("asm: %s\n", asm)
-
-	addr := "1xxxxxxxxxxxxxxxxxxxxxxxxxy1kmdGr" // P2PKH 示例地址
-	// addr := "3DHgSaYsxCj62UKU2yFG3vKbwjua3ViHUS" // P2SH 示例地址
-	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm" // P2WPKH 示例地址
+	// addr := "1xxxxxxxxxxxxxxxxxxxxxxxxxy1kmdGr" // P2PKH 示例地址
+	addr := "3DHgSaYsxCj62UKU2yFG3vKbwjua3ViHUS" // P2SH 示例地址
+	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm" // P2WPKH 示例地址 - 0个UTXO
 	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq" // P2TR 示例地址
 
-	scriptInfo, err := decoders.DecodeAddress(addr)
+	scriptInfo, err := btcapis.GetAddressScriptInfo(ctx, addr)
 	if err != nil {
-		log.Fatalf("DecodeAddress: %v", err)
+		log.Fatalf("GetAddressScriptInfo: %v", err)
 	}
 	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
 	fmt.Println("--------------------------------")
 
 	pkScript := scriptInfo.ScriptPubKeyHex
-	addrInfo, err := btcapis.DecodePkScript(pkScript)
+	addrInfo, err := btcapis.GetAddressInfo(ctx, pkScript)
 	if err != nil {
-		log.Fatalf("DecodePkScript: %v", err)
+		log.Fatalf("GetAddressInfo: %v", err)
 	}
 	fmt.Printf("addrInfo: %+v\n", addrInfo)
 	fmt.Println("--------------------------------")
@@ -85,6 +58,14 @@ func main() {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
+	fmt.Println("--------------------------------")
+
+	utxos, err := btcapis.GetAddressUTXOs(ctx, addr)
+	if err != nil {
+		log.Fatalf("GetAddressUTXOs: %v", err)
+	}
+	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	fmt.Println(string(outUtxos))
 	fmt.Println("--------------------------------")
 
 	// utxos, err := btcapis.GetAddressUTXOs(ctx, addr)

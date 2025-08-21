@@ -1,8 +1,5 @@
 package types
 
-// Hash32 是 32 字节哈希（双 SHA256 结果）。注意：序列化写入时通常按小端。
-type Hash32 [32]byte
-
 // VarInt 序列化时采用比特币可变长度整型编码；此处仅作标注，实际可直接用 uint64 并在编解码层处理。
 type VarInt = uint64
 

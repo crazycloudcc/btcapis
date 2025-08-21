@@ -114,7 +114,7 @@ func printDecodeAddress(addr string, info *types.AddressScriptInfo) {
 	decodeAddre, _ := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
 	pkScript, _ := txscript.PayToAddrScript(decodeAddre)
 
-	ops, asm, err := DisasmScript(pkScript)
+	ops, asm, err := DecodeAsmScript(pkScript)
 	if err != nil {
 		fmt.Printf("[DisasmScript] %s\n", err)
 	}
