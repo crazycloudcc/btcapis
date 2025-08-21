@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -60,14 +59,6 @@ func main() {
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
-	utxos, err := btcapis.GetAddressUTXOs(ctx, addr)
-	if err != nil {
-		log.Fatalf("GetAddressUTXOs: %v", err)
-	}
-	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
-	fmt.Println(string(outUtxos))
-	fmt.Println("--------------------------------")
-
 	// utxos, err := btcapis.GetAddressUTXOs(ctx, addr)
 	// if err != nil {
 	// 	log.Fatalf("GetAddressUTXOs: %v", err)
@@ -75,5 +66,4 @@ func main() {
 	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
 	// fmt.Println(string(outUtxos))
 	// fmt.Println("--------------------------------")
-
 }
