@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 func DecodeRawTx(raw []byte) (*types.Tx, error) {

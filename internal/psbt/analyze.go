@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/crazycloudcc/btcapis/src/decoders"
+	"github.com/crazycloudcc/btcapis/internal/adapters/decoders"
 )
 
 // AnalyzeInputReport 描述单个输入的自检结果

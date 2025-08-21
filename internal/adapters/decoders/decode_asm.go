@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // func DecodeAsmScript(pkScript []byte) (ops []types.ScriptOp, asm string, err error) {

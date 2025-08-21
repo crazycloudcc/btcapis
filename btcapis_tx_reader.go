@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // TxReader 提供交易相关的查询, 如交易原始数据、交易.

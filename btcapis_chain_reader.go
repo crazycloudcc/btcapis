@@ -3,7 +3,7 @@ package btcapis
 import (
 	"context"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // ChainReader 提供区块相关的查询, 如区块哈希、区块头、区块等.

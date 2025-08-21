@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // 严格：必须能成功解析 control block（长度规则 + 头字节 leaf version 合法）

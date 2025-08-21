@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // ParseOrdinalEnvelope 尝试在 tapscript 中寻找并解析 Ordinals TLV。

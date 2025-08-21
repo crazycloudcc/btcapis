@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/crazycloudcc/btcapis/src/decoders"
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/adapters/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // AnalyzeInput 解析某个输入的 witness/script 为 OP code 列表；仅在需要时调用。

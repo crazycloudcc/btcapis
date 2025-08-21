@@ -4,7 +4,7 @@ package mempoolapis
 import (
 	"encoding/hex"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 func mapTxDTO(d TxDTO) *types.Tx {

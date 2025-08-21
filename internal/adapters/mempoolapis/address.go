@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"path"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // AddressBalance implements chain.AddressReader#AddressBalance.

@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/crazycloudcc/btcapis/src/decoders"
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/adapters/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // —— 交易相关

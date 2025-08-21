@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/crazycloudcc/btcapis/src/bitcoindrpc"
-	"github.com/crazycloudcc/btcapis/src/mempoolapis"
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
+	"github.com/crazycloudcc/btcapis/internal/adapters/mempoolapis"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // Client, 包含所有的provider client, 便于外部统一调用

@@ -3,7 +3,7 @@ package btcapis
 import (
 	"context"
 
-	"github.com/crazycloudcc/btcapis/src/types"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // AddressReader 提供地址相关的查询, 如余额和UTXO.
