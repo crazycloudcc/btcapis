@@ -1,24 +1,36 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
 )
 
+const (
+	network = "mainnet"
+	rpcUser = "cc"
+	rpcPass = "ccc"
+	rpcUrl  = "http://192.168.1.16:8332"
+	timeout = 30 * time.Second
+)
+
 func main() {
 	btcapis.Init(
-		"mainnet",
-		"http://192.168.1.16:8332", // bitcoind url
-		"cc",                       // bitcoind user
-		"ccc",                      // bitcoind pass
-		10,                         // 超时时间(秒)
+		network,
+		rpcUrl,
+		rpcUser,
+		rpcPass,
+		int(timeout.Seconds()),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	// txid := "8e2955284d9f66f56df9c89fedd50103fe68f84ec9f138e4e20c67db15de68ee"
@@ -66,4 +78,27 @@ func main() {
 	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
 	// fmt.Println(string(outUtxos))
 	// fmt.Println("--------------------------------")
+
+	testrpc()
+}
+
+// 测试rpc是否正常
+func testrpc() {
+	node := rpcUrl
+	user := rpcUser
+	pass := rpcPass
+
+	body := []byte(`{"jsonrpc":"1.0","id":"go","method":"getblockcount","params":[]}`)
+	req, _ := http.NewRequest("POST", node, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	fmt.Println(resp.Status)
+	fmt.Println(string(out))
 }
