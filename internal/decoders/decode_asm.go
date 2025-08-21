@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
-// func DecodeAsmScript(pkScript []byte) (ops []types.ScriptOp, asm string, err error) {
-// 	txscript.DisasmString()
-// }
+// 反汇编脚本
+func DecodeAsmScript(pkScript []byte) (ops []types.ScriptOp, asm string, err error) {
+	asm, err = txscript.DisasmString(pkScript)
+	if err != nil {
+		return nil, "", err
+	}
+	ops, _, err = DisasmScript(pkScript)
+	return ops, asm, nil
+}
 
 // DisasmScript 将原始脚本字节反汇编为 ops + ASM 字符串；遇到非法 push 会返回错误。
 func DisasmScript(b []byte) (ops []types.ScriptOp, asm string, err error) {

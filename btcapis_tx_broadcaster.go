@@ -1,13 +1,28 @@
 package btcapis
 
-import "context"
+import (
+	"context"
+	"errors"
 
-// Broadcaster 提供交易广播功能.
-type Broadcaster interface {
-	// Broadcast 广播交易.
-	Broadcast(ctx context.Context, rawtx []byte) (txid string, err error)
-}
+	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
+	"github.com/crazycloudcc/btcapis/internal/adapters/mempoolapis"
+)
 
-func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
-	return c.mempoolspaceClient.Broadcast(ctx, rawtx)
+// // Broadcaster 提供交易广播功能.
+// type Broadcaster interface {
+// 	// Broadcast 广播交易.
+// 	Broadcast(ctx context.Context, rawtx []byte) (txid string, err error)
+// }
+
+// Broadcast 广播交易.
+func Broadcast(ctx context.Context, rawtx []byte) (string, error) {
+	if bitcoindrpc.IsInited() {
+		return bitcoindrpc.Broadcast(ctx, rawtx)
+	}
+
+	if mempoolapis.IsInited() {
+		return mempoolapis.Broadcast(ctx, rawtx)
+	}
+
+	return "", errors.New("btcapis: no client available")
 }

@@ -1,4 +1,3 @@
-// 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
 package decoders
 
 import (
@@ -9,6 +8,7 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
+// 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
 func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
 	if err != nil {

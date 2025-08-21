@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 )
 
-type Client struct {
+type Config struct {
 	url    string
 	user   string
 	pass   string
@@ -18,29 +19,29 @@ type Client struct {
 	idSeed int
 }
 
-type Option func(*Client)
+var config *Config = nil
 
-func WithHTTPClient(h *http.Client) Option {
-	return func(c *Client) { c.http = h }
+func IsInited() bool {
+	return config != nil
 }
 
-func New(url, user, pass string, opts ...Option) *Client {
-	c := &Client{
+func Init(url, user, pass string, timeout int) {
+	config = &Config{
 		url:  url,
 		user: user,
 		pass: pass,
-		http: &http.Client{Timeout: 8 * time.Second},
+		http: &http.Client{Timeout: time.Duration(timeout) * time.Second},
 	}
-	for _, o := range opts {
-		o(c)
-	}
-	return c
 }
 
 // ===== 内部 JSON-RPC =====
 
-func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
-	c.idSeed++
+func rpcCall(ctx context.Context, method string, params []any, out any) error {
+	if config == nil {
+		return errors.New("config not initialized")
+	}
+
+	config.idSeed++
 	req := struct {
 		JSONRPC string `json:"jsonrpc"`
 		ID      int    `json:"id"`
@@ -48,7 +49,7 @@ func (c *Client) rpcCall(ctx context.Context, method string, params []any, out a
 		Params  []any  `json:"params"`
 	}{
 		JSONRPC: "2.0",
-		ID:      c.idSeed,
+		ID:      config.idSeed,
 		Method:  method,
 		Params:  params,
 	}
@@ -57,16 +58,16 @@ func (c *Client) rpcCall(ctx context.Context, method string, params []any, out a
 		return err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, config.url, &buf)
 	if err != nil {
 		return err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	if c.user != "" {
-		httpReq.SetBasicAuth(c.user, c.pass)
+	if config.user != "" {
+		httpReq.SetBasicAuth(config.user, config.pass)
 	}
 
-	resp, err := c.http.Do(httpReq)
+	resp, err := config.http.Do(httpReq)
 	if err != nil {
 		return err
 	}
