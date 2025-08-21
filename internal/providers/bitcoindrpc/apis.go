@@ -1,46 +1,14 @@
-// Package bitcoindrpc 提供Bitcoin Core JSON-RPC客户端
 package bitcoindrpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
 
-	"github.com/crazycloudcc/btcapis/chain"
-	"github.com/crazycloudcc/btcapis/script"
-	"github.com/crazycloudcc/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/chain"
+	"github.com/crazycloudcc/btcapis/internal/script"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
-
-type Client struct {
-	url    string
-	user   string
-	pass   string
-	http   *http.Client
-	idSeed int
-}
-
-type Option func(*Client)
-
-func WithHTTPClient(h *http.Client) Option {
-	return func(c *Client) { c.http = h }
-}
-
-func New(url, user, pass string, opts ...Option) *Client {
-	c := &Client{
-		url:  url,
-		user: user,
-		pass: pass,
-		http: &http.Client{Timeout: 8 * time.Second},
-	}
-	for _, o := range opts {
-		o(c)
-	}
-	return c
-}
 
 // ===== chain.Backend 接口实现（最小可用） =====
 
@@ -166,59 +134,4 @@ func (c *Client) TxInMempool(ctx context.Context, txid string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-// ===== 内部 JSON-RPC =====
-
-func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
-	c.idSeed++
-	req := struct {
-		JSONRPC string `json:"jsonrpc"`
-		ID      int    `json:"id"`
-		Method  string `json:"method"`
-		Params  []any  `json:"params"`
-	}{
-		JSONRPC: "2.0",
-		ID:      c.idSeed,
-		Method:  method,
-		Params:  params,
-	}
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(&req); err != nil {
-		return err
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
-	if err != nil {
-		return err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.user != "" {
-		httpReq.SetBasicAuth(c.user, c.pass)
-	}
-
-	resp, err := c.http.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	var rpcResp struct {
-		Result json.RawMessage `json:"result"`
-		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		ID int `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return err
-	}
-	if rpcResp.Error != nil {
-		return fmt.Errorf("bitcoind rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
-	}
-	if out != nil {
-		return json.Unmarshal(rpcResp.Result, out)
-	}
-	return nil
 }

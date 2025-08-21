@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crazycloudcc/btcapis/chain"
-	"github.com/crazycloudcc/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/chain"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 type Client struct {

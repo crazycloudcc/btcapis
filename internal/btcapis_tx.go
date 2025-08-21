@@ -1,8 +1,8 @@
 package btcapis
 
 import (
-	"github.com/crazycloudcc/btcapis/tx"
-	"github.com/crazycloudcc/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/tx"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // // 1) 创建未签名交易（返回：unsigned tx hex + PSBT base64）

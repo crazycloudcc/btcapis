@@ -3,9 +3,9 @@ package btcapis
 import (
 	"context"
 
-	"github.com/crazycloudcc/btcapis/chain"
-	"github.com/crazycloudcc/btcapis/script"
-	"github.com/crazycloudcc/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/chain"
+	"github.com/crazycloudcc/btcapis/internal/script"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // 对外门面：使用地址 解析脚本信息

@@ -15,12 +15,12 @@ package btcapis
 import (
 	"context"
 
-	"github.com/crazycloudcc/btcapis/chain"
-	"github.com/crazycloudcc/btcapis/types"
+	"github.com/crazycloudcc/btcapis/internal/chain"
+	"github.com/crazycloudcc/btcapis/internal/types"
 
 	// 若这些 provider 还没实现，可先注释掉对应 WithXxx
-	"github.com/crazycloudcc/btcapis/providers/bitcoindrpc"
-	"github.com/crazycloudcc/btcapis/providers/mempoolspace"
+	"github.com/crazycloudcc/btcapis/internal/providers/bitcoindrpc"
+	"github.com/crazycloudcc/btcapis/internal/providers/mempoolspace"
 )
 
 type (
