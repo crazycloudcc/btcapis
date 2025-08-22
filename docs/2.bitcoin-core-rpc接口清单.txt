@@ -1,0 +1,57 @@
+
+
+bitcoin core rpc 接口清单
+    1. 链上数据查询 / 分析
+        getblockchaininfo、
+        getbestblockhash、
+        getblockcount
+        getblockhash <height>、
+        getblock <hash> <verbosity>
+        getblockheader <hash> <verbose>、
+        getblockstats <height|hash>
+        gettxout <txid> <vout> <include_mempool>
+        getrawtransaction <txid> true（需 -txindex=1 或交易在钱包里）| （或 decoderawtransaction <hex>）
+        decoderawtransaction <hex>、
+        getchaintips
+        可选索引：getblockfilter <hash>（需 -blockfilterindex=1）
+    2. 内存池 & 交易校验
+        getmempoolinfo、
+        getrawmempool true
+        getmempoolentry <txid>
+        testmempoolaccept ["<hex>"]（策略/费率/规则预检）
+        sendrawtransaction <hex>
+    3. 费用估算
+        estimatesmartfee <conf_target> [economical|conservative]
+    4. 钱包（生成/加载/余额/地址/UTXO）
+        createwallet <name>、
+        loadwallet <name>、
+        listwallets、
+        getwalletinfo
+        getnewaddress [label] [address_type]（legacy/p2sh-segwit/bech32/bech32m；Taproot 用 bech32m）
+        getaddressinfo <address>（脚本/见证信息）
+        validateaddress <address>（补充校验）
+        getaddressesbylabel <label>（可罗列同标签地址）
+        listunspent [minconf] [maxconf] [addresses] [include_unsafe] [query_options]
+        lockunspent false/true [...]（锁定/解锁 UTXO，防止并发争抢）
+        getbalance、
+        getbalances
+        gettransaction <txid>（钱包视角，含确认数、收支变动）
+    5. 描述符 / 扫描（非钱包地址的 UTXO 查询）
+        scantxoutset start ["addr(<address>)" | "combo(<pubkey|address|xpub>)" | "<descriptor>"] （基于描述符/地址扫描全链 UTXO）
+        importdescriptors、
+        deriveaddresses <descriptor> [range]
+        getdescriptorinfo <descriptor>
+    6. 交易构建（原生/PSBT）
+        快速转账：sendtoaddress <address> <amount> [comment] [comment_to] [subtractfeefromamount]
+        原始交易流：createrawtransaction → fundrawtransaction → signrawtransactionwithwallet|withkey → sendrawtransaction
+        PSBT流：walletcreatefundedpsbt →（外部签名或 walletprocesspsbt）→ finalizepsbt → sendrawtransaction
+        utxoupdatepsbt、
+        decodepsbt（调试/补全）
+        试投?? mempool：testmempoolaccept ["<hex>"]
+    说明
+        地址级历史查询并非 Core 原生能力（无地址索引）；
+        要么走钱包持有地址的 listunspent，
+        要么用 scantxoutset 对当前 UTXO 集扫描（不返回已花费历史）。
+        需要全历史请自建索引器（你已有 hiro indexer/自研 db）。
+        Taproot/Bech32m 建议优先使用 PSBT 流程。
+

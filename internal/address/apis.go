@@ -5,13 +5,12 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/crazycloudcc/btcapis/internal/adapters/mempoolapis"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // GetAddressScriptInfo 通过地址, 获取地址的锁定脚本信息.
-func GetAddressScriptInfo(ctx context.Context, addr string) (*types.AddressScriptInfo, error) {
+func (c *Client) GetAddressScriptInfo(ctx context.Context, addr string) (*types.AddressScriptInfo, error) {
 	scriptInfo, err := decoders.DecodeAddress(addr)
 	if err != nil {
 		return nil, err
@@ -20,7 +19,7 @@ func GetAddressScriptInfo(ctx context.Context, addr string) (*types.AddressScrip
 }
 
 // GetAddressInfo 通过锁定脚本, 获取地址信息.
-func GetAddressInfo(ctx context.Context, pkScript []byte) (*types.AddressInfo, error) {
+func (c *Client) GetAddressInfo(ctx context.Context, pkScript []byte) (*types.AddressInfo, error) {
 	scriptInfo, err := decoders.DecodePkScript(pkScript)
 	if err != nil {
 		return nil, err
@@ -34,18 +33,15 @@ func GetAddressInfo(ctx context.Context, pkScript []byte) (*types.AddressInfo, e
 }
 
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.
-func GetAddressBalance(ctx context.Context, addr string) (confirmed int64, mempool int64, err error) {
-	// if bitcoindrpc.IsInited() {
-	// 	return bitcoindrpc.GetAddressBalance(ctx, addr)
-	// }
-	if mempoolapis.IsInited() {
-		return mempoolapis.GetAddressBalance(ctx, addr)
+func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed int64, mempool int64, err error) {
+	if c.mempoolapisClient != nil {
+		return c.mempoolapisClient.GetAddressBalance(ctx, addr)
 	}
 	return 0, 0, errors.New("btcapis: no client available")
 }
 
 // GetAddressUTXOs 通过地址, 获取地址拥有的UTXO.
-func GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
+func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
 	errRet := errors.New("btcapis: no client available or no utxos")
 
 	// 全量扫UTXO耗时太长, 暂时使用mempool.space的API
@@ -65,8 +61,8 @@ func GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
 	// 	errRet = err
 	// }
 
-	if mempoolapis.IsInited() {
-		UTXODTOs, err := mempoolapis.GetAddressUTXOs(ctx, addr)
+	if c.mempoolapisClient != nil {
+		UTXODTOs, err := c.mempoolapisClient.GetAddressUTXOs(ctx, addr)
 		if UTXODTOs != nil && err == nil {
 			utxos := make([]types.UTXO, 0, len(UTXODTOs))
 			for _, dto := range UTXODTOs {

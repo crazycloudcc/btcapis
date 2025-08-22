@@ -12,32 +12,26 @@ import (
 	"time"
 )
 
-type Config struct {
+type Client struct {
 	base *url.URL
 	http *http.Client
 }
 
-var config *Config = nil
-
-func IsInited() bool {
-	return config != nil
-}
-
-func Init(baseURL string, timeout int) {
+func New(baseURL string, timeout int) *Client {
 	u, _ := url.Parse(baseURL)
-	config = &Config{
+	return &Client{
 		base: u,
 		http: &http.Client{Timeout: time.Duration(timeout) * time.Second},
 	}
 }
 
 // ===== HTTP helpers =====
-func getJSON(ctx context.Context, url string, v any) error {
+func (c *Client) getJSON(ctx context.Context, url string, v any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := config.http.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
@@ -49,12 +43,12 @@ func getJSON(ctx context.Context, url string, v any) error {
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
-func getBytes(ctx context.Context, url string) ([]byte, error) {
+func (c *Client) getBytes(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := config.http.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -5,13 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 )
 
-type Config struct {
+type Client struct {
 	url    string
 	user   string
 	pass   string
@@ -19,14 +18,8 @@ type Config struct {
 	idSeed int
 }
 
-var config *Config = nil
-
-func IsInited() bool {
-	return config != nil
-}
-
-func Init(url, user, pass string, timeout int) {
-	config = &Config{
+func New(url, user, pass string, timeout int) *Client {
+	return &Client{
 		url:  url,
 		user: user,
 		pass: pass,
@@ -36,12 +29,8 @@ func Init(url, user, pass string, timeout int) {
 
 // ===== 内部 JSON-RPC =====
 
-func rpcCall(ctx context.Context, method string, params []any, out any) error {
-	if config == nil {
-		return errors.New("config not initialized")
-	}
-
-	config.idSeed++
+func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
+	c.idSeed++
 	req := struct {
 		JSONRPC string `json:"jsonrpc"`
 		ID      int    `json:"id"`
@@ -49,7 +38,7 @@ func rpcCall(ctx context.Context, method string, params []any, out any) error {
 		Params  []any  `json:"params"`
 	}{
 		JSONRPC: "2.0",
-		ID:      config.idSeed,
+		ID:      c.idSeed,
 		Method:  method,
 		Params:  params,
 	}
@@ -58,16 +47,16 @@ func rpcCall(ctx context.Context, method string, params []any, out any) error {
 		return err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, config.url, &buf)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
 	if err != nil {
 		return err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	if config.user != "" {
-		httpReq.SetBasicAuth(config.user, config.pass)
+	if c.user != "" {
+		httpReq.SetBasicAuth(c.user, c.pass)
 	}
 
-	resp, err := config.http.Do(httpReq)
+	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		return err
 	}

@@ -35,3 +35,10 @@ type UTXODTO struct {
 		BlockHeight int64 `json:"block_height"`
 	} `json:"status"`
 }
+
+// 估算交易费率数据结构
+type FeeRateDTO struct {
+	FastestFee  float64 `json:"fastestFee"`
+	HalfHourFee float64 `json:"halfHourFee"`
+	HourFee     float64 `json:"hourFee"`
+}

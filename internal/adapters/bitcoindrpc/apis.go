@@ -7,19 +7,19 @@ import (
 )
 
 // 获取交易
-func GetRawTx(ctx context.Context, txid string) ([]byte, error) {
+func (c *Client) GetRawTx(ctx context.Context, txid string) ([]byte, error) {
 	var hexStr string
-	if err := rpcCall(ctx, "getrawtransaction", []any{txid, false}, &hexStr); err != nil {
+	if err := c.rpcCall(ctx, "getrawtransaction", []any{txid, false}, &hexStr); err != nil {
 		return nil, err
 	}
 	return hex.DecodeString(hexStr)
 }
 
 // 广播交易
-func Broadcast(ctx context.Context, rawtx []byte) (string, error) {
+func (c *Client) Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 	hexRaw := hex.EncodeToString(rawtx)
 	var txid string
-	if err := rpcCall(ctx, "sendrawtransaction", []any{hexRaw}, &txid); err != nil {
+	if err := c.rpcCall(ctx, "sendrawtransaction", []any{hexRaw}, &txid); err != nil {
 		return "", err
 	}
 	return txid, nil
@@ -30,11 +30,11 @@ func Broadcast(ctx context.Context, rawtx []byte) (string, error) {
 // }
 
 // 查询钱包UTXO集
-func GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
+func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
 	// scantxoutset "start" [ scanobjects ] ; 直接用 addr() 描述符
 	params := []interface{}{"start", []interface{}{fmt.Sprintf("addr(%s)", addr)}}
 	var res scanResult
-	if err := rpcCall(ctx, "scantxoutset", params, &res); err != nil {
+	if err := c.rpcCall(ctx, "scantxoutset", params, &res); err != nil {
 		return nil, err
 	}
 	if !res.Success {
@@ -44,7 +44,7 @@ func GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
 }
 
 // 查询 UTXO
-func GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, error) {
+func (c *Client) GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, error) {
 	// 用 gettxout 查询未花费输出
 	var dto struct {
 		Value        float64 `json:"value"` // BTC
@@ -52,7 +52,7 @@ func GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, e
 			Hex string `json:"hex"`
 		} `json:"scriptPubKey"`
 	}
-	if err := rpcCall(ctx, "gettxout", []any{hash, index, true}, &dto); err != nil {
+	if err := c.rpcCall(ctx, "gettxout", []any{hash, index, true}, &dto); err != nil {
 		return nil, 0, err
 	}
 
@@ -63,59 +63,43 @@ func GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, e
 	spk, _ := hex.DecodeString(dto.ScriptPubKey.Hex)
 	value := int64(dto.Value * 1e8)
 	return spk, value, nil
-
-	// 外部组装, 保持最小化封装
-	// return &types.UTXO{
-	// 	OutPoint: op,
-	// 	Value:    int64(dto.Value * 1e8),
-	// 	PkScript: spk,
-	// }, nil
 }
 
 // 估算交易费率
-func EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, error) {
-	// estimatesmartfee 返回 BTC/kB（可能为 null）
-	var resp struct {
-		Feerate *float64 `json:"feerate"` // BTC/KB
-		Errors  []string `json:"errors"`
+func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (*FeeRateDTO, error) {
+	var resp FeeRateDTO
+	if err := c.rpcCall(ctx, "estimatesmartfee", []any{targetBlocks}, &resp); err != nil {
+		return nil, err
 	}
-	if err := rpcCall(ctx, "estimatesmartfee", []any{targetBlocks}, &resp); err != nil {
-		return 0, err
-	}
-	if resp.Feerate == nil {
-		return 0, fmt.Errorf("bitcoind: estimatesmartfee no data")
-	}
-	// BTC/kB -> sats/vB
-	satsPerVB := (*resp.Feerate) * 1e8 / 1000.0
-	return satsPerVB, nil
+	return &resp, nil
 }
 
-// 查询区块哈希
-func GetBlockHash(ctx context.Context, height int64) (string, error) {
+// 使用区块高度 查询区块哈希
+func (c *Client) GetBlockHash(ctx context.Context, height int64) (string, error) {
 	var hash string
-	if err := rpcCall(ctx, "getblockhash", []any{height}, &hash); err != nil {
+	if err := c.rpcCall(ctx, "getblockhash", []any{height}, &hash); err != nil {
 		return "", err
 	}
 	return hash, nil
 }
 
-// 查询区块头
-func GetBlockHeader(ctx context.Context, hash string) ([]byte, error) {
-	var hexStr string
-	if err := rpcCall(ctx, "getblockheader", []any{hash, false}, &hexStr); err != nil {
-		return nil, err
-	}
-	return hex.DecodeString(hexStr)
-}
+// // 查询区块头
+// func (c *Client) GetBlockHeader(ctx context.Context, hash string) ([]byte, error) {
+// 	var hexStr string
+// 	if err := c.rpcCall(ctx, "getblockheader", []any{hash, false}, &hexStr); err != nil {
+// 		return nil, err
+// 	}
+// 	return hex.DecodeString(hexStr)
+// }
 
-// 查询区块
-func GetBlock(ctx context.Context, hash string) ([]byte, error) {
-	var hexStr string
-	if err := rpcCall(ctx, "getblock", []any{hash, 0}, &hexStr); err != nil {
-		return nil, err
-	}
-	return hex.DecodeString(hexStr)
-}
+// // 查询区块
+// func (c *Client) GetBlock(ctx context.Context, hash string) ([]byte, error) {
+// 	var hexStr string
+// 	if err := c.rpcCall(ctx, "getblock", []any{hash, 0}, &hexStr); err != nil {
+// 		return nil, err
+// 	}
+// 	return hex.DecodeString(hexStr)
+// }
 
 // // 查询 mempool
 // func GetRawMempool(ctx context.Context) ([]string, error) {

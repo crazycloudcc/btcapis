@@ -1,0 +1,45 @@
+
+mempool.space接口清单:
+    base url: https://mempool.space
+
+    1. 费用与网络拥堵
+        推荐费率：GET /api/v1/fees/recommended（返回 fastest/halfHour/hour/economy/minimum）
+        未来几块的费率分布：GET /api/v1/fees/mempool-blocks 
+    2. Mempool 概览 / RBF
+        概览统计：GET /api/mempool
+        所有 txids：GET /api/mempool/txids
+        最近交易（少量）：GET /api/mempool/recent
+        RBF 替换列表：GET /api/v1/replacements，GET /api/v1/fullrbf/replacements
+    3. 地址与 UTXO
+        地址总览：GET /api/address/:address
+        地址链上历史：GET /api/address/:address/txs/chain
+        地址 mempool 历史：GET /api/address/:address/txs/mempool
+        地址 UTXO：GET /api/address/:address/utxo（你做 UTXO 拆分所需的基础数据）
+    4. 交易
+        交易详情：GET /api/tx/:txid
+        确认状态：GET /api/tx/:txid/status
+        原始十六进制：GET /api/tx/:txid/hex；原始字节：GET /api/tx/:txid/raw
+        outspends：GET /api/tx/:txid/outspends、单输出：GET /api/tx/:txid/outspend/:vout
+        Merkle 证明：GET /api/tx/:txid/merkle-proof / merkleblock-proof
+        CPFP 分析：GET /api/v1/cpfp?txId=...（辅助判断是否可用 CPFP 加速） 
+        广播交易：POST /api/tx（请求体为原始 tx hex，Content-Type: text/plain）
+    5. 区块
+        最近区块列表 / 按高度分页：GET /api/v1/blocks[/:startHeight]
+        根据高度查区块哈希：GET /api/block-height/:height
+        区块详情/头/原始/状态：GET /api/block/:hash、/header、/raw、/status
+        区块内 txids / txs（支持起始索引）：GET /api/block/:hash/txids、/txs[/:start_index]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

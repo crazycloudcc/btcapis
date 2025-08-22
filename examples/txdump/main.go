@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
@@ -22,7 +18,7 @@ const (
 )
 
 func main() {
-	btcapis.Init(
+	client, testClient := btcapis.New(
 		network,
 		rpcUrl,
 		rpcUser,
@@ -49,29 +45,29 @@ func main() {
 	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm" // P2WPKH 示例地址 - 0个UTXO
 	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq" // P2TR 示例地址
 
-	scriptInfo, err := btcapis.GetAddressScriptInfo(ctx, addr)
-	if err != nil {
-		log.Fatalf("GetAddressScriptInfo: %v", err)
-	}
-	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
-	fmt.Println("--------------------------------")
+	// scriptInfo, err := client.GetAddressScriptInfo(ctx, addr)
+	// if err != nil {
+	// 	log.Fatalf("GetAddressScriptInfo: %v", err)
+	// }
+	// fmt.Printf("scriptInfo: %+v\n", scriptInfo)
+	// fmt.Println("--------------------------------")
 
-	pkScript := scriptInfo.ScriptPubKeyHex
-	addrInfo, err := btcapis.GetAddressInfo(ctx, pkScript)
-	if err != nil {
-		log.Fatalf("GetAddressInfo: %v", err)
-	}
-	fmt.Printf("addrInfo: %+v\n", addrInfo)
-	fmt.Println("--------------------------------")
+	// pkScript := scriptInfo.ScriptPubKeyHex
+	// addrInfo, err := client.GetAddressInfo(ctx, pkScript)
+	// if err != nil {
+	// 	log.Fatalf("GetAddressInfo: %v", err)
+	// }
+	// fmt.Printf("addrInfo: %+v\n", addrInfo)
+	// fmt.Println("--------------------------------")
 
-	confirmed, mempool, err := btcapis.GetAddressBalance(ctx, addr)
+	confirmed, mempool, err := client.GetAddressBalance(ctx, addr)
 	if err != nil {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
-	// utxos, err := btcapis.GetAddressUTXOs(ctx, addr)
+	// utxos, err := client.GetAddressUTXOs(ctx, addr)
 	// if err != nil {
 	// 	log.Fatalf("GetAddressUTXOs: %v", err)
 	// }
@@ -79,26 +75,23 @@ func main() {
 	// fmt.Println(string(outUtxos))
 	// fmt.Println("--------------------------------")
 
-	testrpc()
+	testrpc(client, testClient)
 }
 
 // 测试rpc是否正常
-func testrpc() {
-	node := rpcUrl
-	user := rpcUser
-	pass := rpcPass
-
-	body := []byte(`{"jsonrpc":"1.0","id":"go","method":"getblockcount","params":[]}`)
-	req, _ := http.NewRequest("POST", node, bytes.NewReader(body))
-	req.Header.Set("Content-Type", "text/plain")
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
-
-	resp, err := http.DefaultClient.Do(req)
+func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
+	res, err := testClient.GetNetworkInfo(context.Background())
 	if err != nil {
-		panic(err)
+		log.Fatalf("GetNetworkInfo: %v", err)
 	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	fmt.Println(resp.Status)
-	fmt.Println(string(out))
+	fmt.Printf("res: %+v\n", res)
+	fmt.Println("--------------------------------")
+
+	feerate1, feerate2, err := client.EstimateFeeRate(context.Background(), 1)
+	if err != nil {
+		log.Fatalf("EstimateFeeRate: %v", err)
+	}
+	fmt.Printf("feerate1: %+v (sats/vB)\n", feerate1*1e8/1000.0)
+	fmt.Printf("feerate2: %+v (sats/vB)\n", feerate2)
+	fmt.Println("--------------------------------")
 }
