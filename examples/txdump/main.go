@@ -50,20 +50,20 @@ func main() {
 	// addr := "bc1qgnmdx4pyaxrkhtgeqgh0g93cvar7achq8kjtnm" // P2WPKH 示例地址 - 0个UTXO
 	// addr := "bc1ps2wwxjhw5t33r5tp46yh9x5pukkalsd2vtye07p353fgt7hln5tq763upq" // P2TR 示例地址
 
-	// scriptInfo, err := client.GetAddressScriptInfo(ctx, addr)
-	// if err != nil {
-	// 	log.Fatalf("GetAddressScriptInfo: %v", err)
-	// }
-	// fmt.Printf("scriptInfo: %+v\n", scriptInfo)
-	// fmt.Println("--------------------------------")
+	scriptInfo, err := client.GetAddressScriptInfo(ctx, addr)
+	if err != nil {
+		log.Fatalf("GetAddressScriptInfo: %v", err)
+	}
+	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
+	fmt.Println("--------------------------------")
 
-	// pkScript := scriptInfo.ScriptPubKeyHex
-	// addrInfo, err := client.GetAddressInfo(ctx, pkScript)
-	// if err != nil {
-	// 	log.Fatalf("GetAddressInfo: %v", err)
-	// }
-	// fmt.Printf("addrInfo: %+v\n", addrInfo)
-	// fmt.Println("--------------------------------")
+	pkScript := scriptInfo.ScriptPubKeyHex
+	addrInfo, err := client.GetAddressInfo(ctx, pkScript)
+	if err != nil {
+		log.Fatalf("GetAddressInfo: %v", err)
+	}
+	fmt.Printf("addrInfo: %+v\n", addrInfo)
+	fmt.Println("--------------------------------")
 
 	confirmed, mempool, err := client.GetAddressBalance(ctx, addr)
 	if err != nil {
@@ -105,5 +105,12 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 		log.Fatalf("BuildTx: %v", err)
 	}
 	fmt.Printf("rawtx: %s\n", hex.EncodeToString(rawtx))
+	fmt.Println("--------------------------------")
+
+	result, err := client.FundTx(context.Background(), hex.EncodeToString(rawtx))
+	if err != nil {
+		log.Fatalf("FundTx: %v", err)
+	}
+	fmt.Printf("result: %+v\n", result)
 	fmt.Println("--------------------------------")
 }

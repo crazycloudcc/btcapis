@@ -11,19 +11,11 @@ import (
 func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
 
 	inputs := []bitcoindrpc.TxInputCreateRawDTO{
-		{
-			TxID: "0d31e59675c85f17d942f4510bb4760d9ed4b661df22af3b7cd5ef3c2116626b",
-			Vout: 0,
-		},
+		bitcoindrpc.NewTxInput("0d31e59675c85f17d942f4510bb4760d9ed4b661df22af3b7cd5ef3c2116626b", 0),
 	}
 	outputs := []bitcoindrpc.TxOutputCreateRawDTO{
-		{
-			Address: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
-			Amount:  10000,
-		},
-		{
-			DataHex: "0100000000000000000000000000000000000000000000000000000000000000",
-		},
+		bitcoindrpc.NewPayToAddress("tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw", 0.001),
+		bitcoindrpc.NewOpReturn("0100000000000000000000000000000000000000000000000000000000000000"),
 	}
 
 	// locktime := int64(0)
@@ -41,10 +33,26 @@ func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Printf("dto: %+v\n", raw)
+	fmt.Printf("dto: %+v\n", string(raw))
 	fmt.Println("--------------------------------")
 
 	return c.txClient.BuildTx(ctx, dto)
+}
+
+// 填充交易费用
+func (c *Client) FundTx(ctx context.Context, rawtx string) (bitcoindrpc.TxFundRawResultDTO, error) {
+
+	options := bitcoindrpc.TxFundOptionsDTO{
+		AddInputs:     true,
+		FeeRateSats:   10,
+		Replaceable:   true,
+		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
+		// ChangeType: "bech32",
+	}
+	fmt.Printf("options: %+v\n", options)
+	fmt.Println("--------------------------------")
+
+	return c.txClient.FundTx(ctx, rawtx, options)
 }
 
 // // GetRawTx 返回交易原始数据.

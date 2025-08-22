@@ -21,25 +21,20 @@ func (c *Client) TxGetRaw(ctx context.Context, txid string) ([]byte, error) {
 // 构建交易
 func (c *Client) TxCreateRaw(ctx context.Context, dto TxCreateRawDTO) ([]byte, error) {
 	var rawtx string
-	params, err := dto.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.rpcCall(ctx, "createrawtransaction", []any{params}, &rawtx); err != nil {
+	if err := c.rpcCallWithAny(ctx, "createrawtransaction", dto, &rawtx); err != nil {
 		return nil, err
 	}
 	return hex.DecodeString(rawtx)
 }
 
-// // 获取交易费用
-// func (c *Client) TxFundRaw(ctx context.Context, dto TxFundRawDTO) ([]byte, error) {
-// 	var rawtx string
-// 	if err := c.rpcCall(ctx, "fundrawtransaction", []any{dto}, &rawtx); err != nil {
-// 		return nil, err
-// 	}
-// 	return hex.DecodeString(rawtx)
-// }
+// 填充交易费用
+func (c *Client) TxFundRaw(ctx context.Context, rawtx string, options TxFundOptionsDTO) (TxFundRawResultDTO, error) {
+	var result TxFundRawResultDTO
+	if err := c.rpcCall(ctx, "fundrawtransaction", []any{rawtx, options}, &result); err != nil {
+		return TxFundRawResultDTO{}, err
+	}
+	return result, nil
+}
 
 // 广播交易
 func (c *Client) TxBroadcast(ctx context.Context, rawtx []byte) (string, error) {
