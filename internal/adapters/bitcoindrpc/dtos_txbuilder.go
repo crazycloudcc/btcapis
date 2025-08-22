@@ -6,12 +6,26 @@ import (
 	"fmt"
 )
 
-// 构建交易输入
-type TxInputCreateRawDTO struct {
-	TxID     string `json:"txid"`     // 交易ID
-	Vout     uint32 `json:"vout"`     // 输出索引
-	Sequence uint32 `json:"sequence"` // 可选, 默认 0xffffffff
+type BTCAmount int64 // satoshis
+
+func (a BTCAmount) MarshalJSON() ([]byte, error) {
+	neg := a < 0
+	v := a
+	if neg {
+		v = -v
+	}
+	intPart := v / 1e8
+	fracPart := v % 1e8
+	s := fmt.Sprintf("%d.%08d", intPart, fracPart)
+	if neg {
+		s = "-" + s
+	}
+	// 输出为 **数字**，不加引号
+	return []byte(s), nil
 }
+
+// 工具：sats -> BTCAmount
+func Sats(v int64) BTCAmount { return BTCAmount(v) }
 
 type TxOutputScriptPubKeyCreateRawDTO struct {
 	// 二选一：常用为 Hex。也允许携带 address（Core 会验证/转换）。
@@ -19,11 +33,18 @@ type TxOutputScriptPubKeyCreateRawDTO struct {
 	Hex     string `json:"hex,omitempty"`
 }
 
+// 构建交易输入
+type TxInputCreateRawDTO struct {
+	TxID     string `json:"txid"`     // 交易ID
+	Vout     uint32 `json:"vout"`     // 输出索引
+	Sequence uint32 `json:"sequence"` // 可选, 默认 0xffffffff
+}
+
 // 构建交易输出
 type TxOutputCreateRawDTO struct {
 	Address string                            `json:"address,omitempty"` // 地址
 	Script  *TxOutputScriptPubKeyCreateRawDTO `json:"script,omitempty"`  // 脚本公钥
-	Amount  float64                           `json:"amount,omitempty"`  // 金额
+	Amount  BTCAmount                         `json:"amount,omitempty"`  // 金额
 	DataHex string                            `json:"datahex,omitempty"` // OP_RETURN 不带金额
 }
 
@@ -55,6 +76,42 @@ func (o TxOutputCreateRawDTO) MarshalJSON() ([]byte, error) {
 type TxCreateRawDTO struct {
 	Inputs      []TxInputCreateRawDTO  `json:"inputs"`      // 交易输入
 	Outputs     []TxOutputCreateRawDTO `json:"outputs"`     // 交易输出
-	Locktime    int64                  `json:"locktime"`    // 可选, 默认 0; 非0值时, 交易锁定时间生效
-	Replaceable bool                   `json:"replaceable"` // 可选, 默认 true; 是否可替换
+	Locktime    *int64                 `json:"locktime"`    // 可选, 默认 0; 非0值时, 交易锁定时间生效
+	Replaceable *bool                  `json:"replaceable"` // 可选, 默认 true; 是否可替换
+}
+
+// MarshalJSON 按 Core 期望的“位置参数数组”编码： [vin, vout, locktime, replaceable]
+func (p TxCreateRawDTO) MarshalJSON() ([]byte, error) {
+	var arr []any
+	arr = append(arr, p.Inputs)
+	arr = append(arr, p.Outputs)
+	// 仅当你需要第三/第四参数时才追加（避免与旧版/默认冲突）
+	if p.Locktime != nil || p.Replaceable != nil {
+		if p.Locktime == nil {
+			var zero int64
+			arr = append(arr, zero)
+		} else {
+			arr = append(arr, *p.Locktime)
+		}
+	}
+	if p.Replaceable != nil {
+		arr = append(arr, *p.Replaceable)
+	}
+	return json.Marshal(arr)
+}
+
+// 便捷构造器
+func newPayToAddress(addr string, sats int64) TxOutputCreateRawDTO {
+	return TxOutputCreateRawDTO{Address: addr, Amount: Sats(sats)}
+}
+
+func newPayToScriptHex(scriptHex string, sats int64) TxOutputCreateRawDTO {
+	return TxOutputCreateRawDTO{
+		Script: &TxOutputScriptPubKeyCreateRawDTO{Hex: scriptHex},
+		Amount: Sats(sats),
+	}
+}
+
+func newOpReturn(hexData string) TxOutputCreateRawDTO {
+	return TxOutputCreateRawDTO{DataHex: hexData}
 }

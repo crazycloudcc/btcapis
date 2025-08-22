@@ -11,7 +11,7 @@ import (
 // }
 
 // 查询钱包UTXO集（基于描述符/地址扫描全链 UTXO） - 会导致节点进行全量查询, 慎用
-func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
+func (c *Client) AddressGetUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
 	// scantxoutset "start" [ scanobjects ] ; 直接用 addr() 描述符
 	params := []interface{}{"start", []interface{}{fmt.Sprintf("addr(%s)", addr)}}
 	var res scanResult
@@ -25,9 +25,18 @@ func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]UTXODTO, e
 }
 
 // 查询钱包详细信息: 根据是否导入到本地节点, 返回数据不同
-func (c *Client) GetAddressInfo(ctx context.Context, addr string) (*AddressInfoDTO, error) {
+func (c *Client) AddressGetInfo(ctx context.Context, addr string) (*AddressInfoDTO, error) {
 	var res AddressInfoDTO
 	if err := c.rpcCall(ctx, "getaddressinfo", []any{addr}, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// 校验钱包
+func (c *Client) AddressValidate(ctx context.Context, addr string) (*ValidateAddressDTO, error) {
+	var res ValidateAddressDTO
+	if err := c.rpcCall(ctx, "validateaddress", []any{addr}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil

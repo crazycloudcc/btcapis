@@ -33,7 +33,7 @@ type NetworkInfoDTO struct {
 		Port    int    `json:"port"`    // 端口
 		Score   int    `json:"score"`   // 分数
 	} `json:"localaddresses"` // 本地地址列表
-	Warnings []string `json:"warnings"` // 警告列表
+	Warnings string `json:"warnings"` // 警告
 }
 
 // 链信息数据结构

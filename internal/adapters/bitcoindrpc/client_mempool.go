@@ -44,7 +44,7 @@ type MempoolTxDTO struct {
 }
 
 // 获取内存池信息
-func (c *Client) GetMempoolInfo(ctx context.Context) (MempoolInfoDTO, error) {
+func (c *Client) MempoolGetInfo(ctx context.Context) (MempoolInfoDTO, error) {
 	var res MempoolInfoDTO
 	if err := c.rpcCall(ctx, "getmempoolinfo", []any{}, &res); err != nil {
 		return MempoolInfoDTO{}, fmt.Errorf("getmempoolinfo: %w", err)
@@ -53,7 +53,7 @@ func (c *Client) GetMempoolInfo(ctx context.Context) (MempoolInfoDTO, error) {
 }
 
 // 获取内存池交易信息
-func (c *Client) GetMempoolTxs(ctx context.Context) ([]string, error) {
+func (c *Client) MempoolGetTxs(ctx context.Context) ([]string, error) {
 	var res []string
 	var flag bool = false // false-返回txid数组; true-返回tx的详细数据json;
 	if err := c.rpcCall(ctx, "getrawmempool", []any{flag}, &res); err != nil {
@@ -63,7 +63,7 @@ func (c *Client) GetMempoolTxs(ctx context.Context) ([]string, error) {
 }
 
 // 获取内存池交易信息
-func (c *Client) GetMempoolEntryTx(ctx context.Context, txid string) (MempoolTxDTO, error) {
+func (c *Client) MempoolGetTx(ctx context.Context, txid string) (MempoolTxDTO, error) {
 	var res MempoolTxDTO
 	if err := c.rpcCall(ctx, "getmempoolentry", []any{txid}, &res); err != nil {
 		return MempoolTxDTO{}, fmt.Errorf("getmempoolentry: %w", err)

@@ -7,7 +7,7 @@ import (
 func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, float64, error) {
 	var fee1, fee2 float64 = 0, 0
 	if c.bitcoindrpcClient != nil {
-		dto, err := c.bitcoindrpcClient.EstimateFeeRate(ctx, targetBlocks)
+		dto, err := c.bitcoindrpcClient.ChainEstimateSmartFeeRate(ctx, targetBlocks)
 		if err != nil {
 			return 0, 0, err
 		}

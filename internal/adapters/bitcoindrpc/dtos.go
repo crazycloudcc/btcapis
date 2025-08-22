@@ -84,3 +84,13 @@ type AddressInfoDTO struct {
 	IsChange       bool     `json:"ischange"`        // 是否改变
 	Labels         []string `json:"labels"`          // 标签
 }
+
+type ValidateAddressDTO struct {
+	IsValid        bool   `json:"isvalid"`         // 是否有效
+	Address        string `json:"address"`         // 地址
+	ScriptPubKey   string `json:"scriptPubKey"`    // 脚本公钥
+	IsScript       bool   `json:"isscript"`        // 是否脚本
+	IsWitness      bool   `json:"iswitness"`       // 是否见证
+	WitnessVersion int    `json:"witness_version"` // 见证版本
+	WitnessProgram string `json:"witness_program"` // 见证程序
+}

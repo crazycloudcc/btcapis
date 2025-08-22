@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
@@ -97,5 +98,12 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 	}
 	fmt.Printf("feerate1: %.2f (sats/vB)\n", feerate1*1e8/1000.0)
 	fmt.Printf("feerate2: %.2f (sats/vB)\n", feerate2)
+	fmt.Println("--------------------------------")
+
+	rawtx, err := client.BuildTx(context.Background())
+	if err != nil {
+		log.Fatalf("BuildTx: %v", err)
+	}
+	fmt.Printf("rawtx: %s\n", hex.EncodeToString(rawtx))
 	fmt.Println("--------------------------------")
 }
