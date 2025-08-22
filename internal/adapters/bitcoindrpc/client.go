@@ -27,8 +27,6 @@ func New(url, user, pass string, timeout int) *Client {
 	}
 }
 
-// ===== 内部 JSON-RPC =====
-
 func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
 	c.idSeed++
 	req := struct {
