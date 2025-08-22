@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -35,6 +36,14 @@ func main() {
 		rpcPass,
 		int(timeout.Seconds()),
 	)
+
+	if client == nil {
+		log.Fatalf("New: %v", errors.New("client is nil"))
+	}
+
+	if testClient == nil {
+		log.Fatalf("New: %v", errors.New("testClient is nil"))
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -72,15 +81,15 @@ func main() {
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
-	// utxos, err := client.GetAddressUTXOs(ctx, addr)
-	// if err != nil {
-	// 	log.Fatalf("GetAddressUTXOs: %v", err)
-	// }
-	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
-	// fmt.Println(string(outUtxos))
-	// fmt.Println("--------------------------------")
+	utxos, err := client.GetAddressUTXOs(ctx, addr)
+	if err != nil {
+		log.Fatalf("GetAddressUTXOs: %v", err)
+	}
+	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	fmt.Println(string(outUtxos))
+	fmt.Println("--------------------------------")
 
-	testrpc(client, testClient)
+	// testrpc(client, testClient)
 }
 
 // 测试rpc是否正常
@@ -100,17 +109,17 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 	fmt.Printf("feerate2: %.2f (sats/vB)\n", feerate2)
 	fmt.Println("--------------------------------")
 
-	rawtx, err := client.BuildTx(context.Background())
-	if err != nil {
-		log.Fatalf("BuildTx: %v", err)
-	}
-	fmt.Printf("rawtx: %s\n", hex.EncodeToString(rawtx))
-	fmt.Println("--------------------------------")
+	// rawtx, err := client.BuildTx(context.Background())
+	// if err != nil {
+	// 	log.Fatalf("BuildTx: %v", err)
+	// }
+	// fmt.Printf("rawtx: %s\n", hex.EncodeToString(rawtx))
+	// fmt.Println("--------------------------------")
 
-	result, err := client.FundTx(context.Background(), hex.EncodeToString(rawtx))
-	if err != nil {
-		log.Fatalf("FundTx: %v", err)
-	}
-	fmt.Printf("result: %+v\n", result)
-	fmt.Println("--------------------------------")
+	// result, err := client.FundTx(context.Background(), hex.EncodeToString(rawtx))
+	// if err != nil {
+	// 	log.Fatalf("FundTx: %v", err)
+	// }
+	// fmt.Printf("result: %+v\n", result)
+	// fmt.Println("--------------------------------")
 }

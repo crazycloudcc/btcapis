@@ -18,7 +18,7 @@ func (c *Client) TxGetRaw(ctx context.Context, txid string) ([]byte, error) {
 	return hex.DecodeString(hexStr)
 }
 
-// 构建交易
+// 构建交易(taproot需要使用psbt)
 func (c *Client) TxCreateRaw(ctx context.Context, dto TxCreateRawDTO) ([]byte, error) {
 	var rawtx string
 	if err := c.rpcCallWithAny(ctx, "createrawtransaction", dto, &rawtx); err != nil {
@@ -27,13 +27,31 @@ func (c *Client) TxCreateRaw(ctx context.Context, dto TxCreateRawDTO) ([]byte, e
 	return hex.DecodeString(rawtx)
 }
 
-// 填充交易费用
+// 填充交易费用(taproot需要使用psbt)
 func (c *Client) TxFundRaw(ctx context.Context, rawtx string, options TxFundOptionsDTO) (TxFundRawResultDTO, error) {
 	var result TxFundRawResultDTO
 	if err := c.rpcCall(ctx, "fundrawtransaction", []any{rawtx, options}, &result); err != nil {
 		return TxFundRawResultDTO{}, err
 	}
 	return result, nil
+}
+
+// 签名交易(taproot需要使用psbt)
+func (c *Client) TxSignRawWithKey(ctx context.Context, rawtx string) (string, error) {
+	var signedTx string
+	if err := c.rpcCall(ctx, "signrawtransactionwithkey", []any{rawtx}, &signedTx); err != nil {
+		return "", err
+	}
+	return signedTx, nil
+}
+
+// 完成psbt交易
+func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (string, error) {
+	var signedTx string
+	if err := c.rpcCall(ctx, "finalizepsbt", []any{psbt}, &signedTx); err != nil {
+		return "", err
+	}
+	return signedTx, nil
 }
 
 // 广播交易

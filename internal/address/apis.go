@@ -35,7 +35,7 @@ func (c *Client) GetAddressInfo(ctx context.Context, pkScript []byte) (*types.Ad
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed int64, mempool int64, err error) {
 	if c.mempoolapisClient != nil {
-		return c.mempoolapisClient.GetAddressBalance(ctx, addr)
+		return c.mempoolapisClient.AddressGetBalance(ctx, addr)
 	}
 	return 0, 0, errors.New("btcapis: no client available")
 }
@@ -62,7 +62,7 @@ func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO
 	// }
 
 	if c.mempoolapisClient != nil {
-		UTXODTOs, err := c.mempoolapisClient.GetAddressUTXOs(ctx, addr)
+		UTXODTOs, err := c.mempoolapisClient.AddressGetUTXOs(ctx, addr)
 		if UTXODTOs != nil && err == nil {
 			utxos := make([]types.UTXO, 0, len(UTXODTOs))
 			for _, dto := range UTXODTOs {

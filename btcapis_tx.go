@@ -1,59 +1,57 @@
 package btcapis
 
-import (
-	"context"
-	"fmt"
+// // 构建交易 (调试已经完成)
+// func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
 
-	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
-)
+// 	inputs := []bitcoindrpc.TxInputCreateRawDTO{
+// 		bitcoindrpc.NewTxInput("0d31e59675c85f17d942f4510bb4760d9ed4b661df22af3b7cd5ef3c2116626b", 0),
+// 	}
+// 	outputs := []bitcoindrpc.TxOutputCreateRawDTO{
+// 		bitcoindrpc.NewPayToAddress("tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw", 0.001),
+// 		bitcoindrpc.NewOpReturn("0100000000000000000000000000000000000000000000000000000000000000"),
+// 	}
 
-// 构建交易
-func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
+// 	// locktime := int64(0)
+// 	// replaceable := false
 
-	inputs := []bitcoindrpc.TxInputCreateRawDTO{
-		bitcoindrpc.NewTxInput("0d31e59675c85f17d942f4510bb4760d9ed4b661df22af3b7cd5ef3c2116626b", 0),
-	}
-	outputs := []bitcoindrpc.TxOutputCreateRawDTO{
-		bitcoindrpc.NewPayToAddress("tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw", 0.001),
-		bitcoindrpc.NewOpReturn("0100000000000000000000000000000000000000000000000000000000000000"),
-	}
+// 	dto := bitcoindrpc.TxCreateRawDTO{
+// 		Inputs:  inputs,
+// 		Outputs: outputs,
+// 		// Locktime:    &locktime,
+// 		// Replaceable: &replaceable,
+// 	}
 
-	// locktime := int64(0)
-	// replaceable := false
+// 	raw, err := dto.MarshalJSON()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	dto := bitcoindrpc.TxCreateRawDTO{
-		Inputs:  inputs,
-		Outputs: outputs,
-		// Locktime:    &locktime,
-		// Replaceable: &replaceable,
-	}
+// 	fmt.Printf("dto: %+v\n", string(raw))
+// 	fmt.Println("--------------------------------")
 
-	raw, err := dto.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
+// 	return c.txClient.BuildTx(ctx, dto)
+// }
 
-	fmt.Printf("dto: %+v\n", string(raw))
-	fmt.Println("--------------------------------")
+// // 填充交易费用 (调试已经完成)
+// func (c *Client) FundTx(ctx context.Context, rawtx string) (bitcoindrpc.TxFundRawResultDTO, error) {
 
-	return c.txClient.BuildTx(ctx, dto)
-}
+// 	options := bitcoindrpc.TxFundOptionsDTO{
+// 		AddInputs:     true,
+// 		FeeRateSats:   10,
+// 		Replaceable:   true,
+// 		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
+// 		// ChangeType: "bech32",
+// 	}
+// 	fmt.Printf("options: %+v\n", options)
+// 	fmt.Println("--------------------------------")
 
-// 填充交易费用
-func (c *Client) FundTx(ctx context.Context, rawtx string) (bitcoindrpc.TxFundRawResultDTO, error) {
+// 	return c.txClient.FundTx(ctx, rawtx, options)
+// }
 
-	options := bitcoindrpc.TxFundOptionsDTO{
-		AddInputs:     true,
-		FeeRateSats:   10,
-		Replaceable:   true,
-		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
-		// ChangeType: "bech32",
-	}
-	fmt.Printf("options: %+v\n", options)
-	fmt.Println("--------------------------------")
-
-	return c.txClient.FundTx(ctx, rawtx, options)
-}
+// // 签名交易
+// func (c *Client) SignTxWithKey(ctx context.Context, rawtx string) (string, error) {
+// 	return c.txClient.TxSignRawWithKey(ctx, rawtx)
+// }
 
 // // GetRawTx 返回交易原始数据.
 // func GetRawTx(ctx context.Context, txid string) ([]byte, error) {
