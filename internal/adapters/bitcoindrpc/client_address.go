@@ -10,7 +10,7 @@ import (
 // func GetAddressBalance(ctx context.Context, addr string) (int64, int64, error) {
 // }
 
-// 查询钱包UTXO集（基于描述符/地址扫描全链 UTXO） - 会导致节点进行全量查询, 慎用
+// 查询钱包UTXO集（基于描述符/地址扫描全链 UTXO） - 会导致节点进行全量查询, 慎用, 等待时间很长
 func (c *Client) AddressGetUTXOs(ctx context.Context, addr string) ([]UTXODTO, error) {
 	// scantxoutset "start" [ scanobjects ] ; 直接用 addr() 描述符
 	params := []interface{}{"start", []interface{}{fmt.Sprintf("addr(%s)", addr)}}

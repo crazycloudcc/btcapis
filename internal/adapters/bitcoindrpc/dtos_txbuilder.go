@@ -23,7 +23,7 @@ type TxInputCreateRawDTO struct {
 type TxOutputCreateRawDTO struct {
 	Address string                            `json:"address,omitempty"` // 地址
 	Script  *TxOutputScriptPubKeyCreateRawDTO `json:"script,omitempty"`  // 脚本公钥
-	Amount  float64                           `json:"amount,omitempty"`  // 金额
+	Amount  float64                           `json:"amount,omitempty"`  // 金额(单位:BTC)
 	DataHex string                            `json:"datahex,omitempty"` // OP_RETURN 不带金额
 }
 

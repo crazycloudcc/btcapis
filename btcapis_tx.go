@@ -1,5 +1,12 @@
 package btcapis
 
+import (
+	"context"
+
+	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
+)
+
 // // 构建交易 (调试已经完成)
 // func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
 
@@ -53,36 +60,30 @@ package btcapis
 // 	return c.txClient.TxSignRawWithKey(ctx, rawtx)
 // }
 
-// // GetRawTx 返回交易原始数据.
-// func GetRawTx(ctx context.Context, txid string) ([]byte, error) {
-// 	if bitcoindrpc.IsInited() {
-// 		return bitcoindrpc.GetRawTx(ctx, txid)
-// 	}
+// 查询交易信息 => 适用于通过txid查询详细交易信息
+func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
+	rawtx, err := c.txClient.GetRawTx(ctx, txid)
+	if err != nil {
+		return nil, err
+	}
+	ret, err := decoders.DecodeRawTx(rawtx)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if mempoolapis.IsInited() {
-// 		return mempoolapis.GetRawTx(ctx, txid)
-// 	}
+	return ret, err
+}
 
-// 	return nil, errors.New("btcapis: no client available")
-// }
+// 解析一笔交易元数据 => 适用于外部直接输入交易元数据解析结构
+func (c *Client) DecodeRawTx(ctx context.Context, rawtx []byte) (*types.Tx, error) {
+	ret, err := decoders.DecodeRawTx(rawtx)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
 
-// // GetTx 返回交易.(优先使用bitcoindrpcClient, 其次使用mempoolspaceClient, 两边的数据格式不一致, 所以需要兼容)
-// func GetTx(ctx context.Context, txid string) (*types.Tx, error) {
-// 	if bitcoindrpc.IsInited() {
-// 		raw, err := bitcoindrpc.GetRawTx(ctx, txid)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		return decoders.DecodeRawTx(raw)
-// 	}
-
-// 	if mempoolapis.IsInited() {
-// 		raw, err := mempoolapis.GetRawTx(ctx, txid)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		return decoders.DecodeRawTx(raw)
-// 	}
-
-// 	return nil, errors.New("btcapis: no client available")
-// }
+// 普通转账交易
+func (c *Client) SendBTC(ctx context.Context, inputParams *TxInputParams) {
+	c.txClient.SendBTC(ctx, *inputParams)
+}

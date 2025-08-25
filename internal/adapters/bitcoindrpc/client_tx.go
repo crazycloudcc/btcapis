@@ -9,9 +9,9 @@ import (
 // 获取交易元数据
 // [可以修改decodeFlag获取json格式数据, 也可以使用decoderawtransaction(hex)解析raw数据]
 // 目前使用btcd库统一解析交易数据的hex.
-func (c *Client) TxGetRaw(ctx context.Context, txid string) ([]byte, error) {
+// decodeFlag: false-返回hex字符串; true-返回json;
+func (c *Client) TxGetRaw(ctx context.Context, txid string, decodeFlag bool) ([]byte, error) {
 	var hexStr string
-	var decodeFlag bool = false // false-返回hex字符串; true-返回json;
 	if err := c.rpcCall(ctx, "getrawtransaction", []any{txid, decodeFlag}, &hexStr); err != nil {
 		return nil, err
 	}
