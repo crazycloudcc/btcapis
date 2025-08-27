@@ -2,8 +2,10 @@ package btcapis
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/tx"
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
@@ -60,6 +62,11 @@ import (
 // 	return c.txClient.TxSignRawWithKey(ctx, rawtx)
 // }
 
+// 查询交易元数据
+func (c *Client) GetTxRaw(ctx context.Context, txid string) ([]byte, error) {
+	return c.txClient.GetRawTx(ctx, txid)
+}
+
 // 查询交易信息 => 适用于通过txid查询详细交易信息
 func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	rawtx, err := c.txClient.GetRawTx(ctx, txid)
@@ -83,7 +90,20 @@ func (c *Client) DecodeRawTx(ctx context.Context, rawtx []byte) (*types.Tx, erro
 	return ret, nil
 }
 
-// // 普通转账交易
-// func (c *Client) SendBTC(ctx context.Context, inputParams *TxInputParams) {
-// 	c.txClient.SendBTC(ctx, *inputParams)
-// }
+// 上传钱包+publickey, 用于后续组装PSBT等数据, 后续需要在postgres创建映射;
+func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, publickey string) error {
+	fmt.Printf("import address: %s, publickey: %s\n", address, publickey)
+	return nil
+}
+
+// 创建PSBT预览交易数据(钱包未签名状态)
+func (c *Client) CreatePSBT(ctx context.Context, inputParams *tx.TxInputParams) (string, error) {
+	fmt.Printf("create psbt: %+v\n", inputParams)
+	return c.txClient.SendBTCByPSBTPreview(ctx, inputParams)
+}
+
+// 上传经过钱包签名的PSBT数据, 用于后续广播交易;
+func (c *Client) SendBTCByPSBT(ctx context.Context, psbt string) (string, error) {
+	fmt.Printf("send psbt: %s\n", psbt)
+	return c.txClient.SendBTCByPSBT(ctx, psbt)
+}
