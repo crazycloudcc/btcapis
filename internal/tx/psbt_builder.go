@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
@@ -64,35 +65,28 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 	selectedUTXOs, changeAmount := selectCoins(allUTXOs, totalOutputSats, feeRate)
 	fmt.Printf("changeAmount: %d\n", changeAmount)
 
+	addrScriptInfo, err := decoders.DecodeAddress(inputParams.FromAddress[0])
+
 	// 3. 将TxUTXO转为PsbtUTXO结构
-	redeemBytes, err := getRedeemScript(inputParams.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get redeem script: %w", err)
-	}
 	psbtUTXOs := make([]psbt.PsbtUTXO, 0, len(selectedUTXOs))
 	for _, utxo := range selectedUTXOs {
 		nonWitnessTxHex := ""
-		redeemScriptHex := ""
-
-		if isP2SH(utxo.PkScript) && len(redeemBytes) > 0 && isSegwitProgram(redeemBytes) {
-			// P2SH-P2WPKH 或 P2SH-P2WSH
-			// 需要提供 redeemScript
-			redeemScriptHex = hex.EncodeToString(redeemBytes)
-		} else if isLegacy(utxo.PkScript) { // legacy 类型需要提供前序交易
-			raw, err := c.GetRawTx(ctx, utxo.OutPoint.Hash.String())
+		if decoders.PKScriptToType(utxo.PkScript) == types.AddrP2PKH {
+			txRaw, err := c.bitcoindrpcClient.TxGetRaw(ctx, utxo.OutPoint.Hash.String(), false)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get raw tx for UTXO %s:%d: %w", utxo.OutPoint.Hash.String(), utxo.OutPoint.Index, err)
+				return nil, fmt.Errorf("failed to get raw tx for %s: %w", utxo.OutPoint.Hash.String(), err)
 			}
-			nonWitnessTxHex = hex.EncodeToString(raw)
+			nonWitnessTxHex = hex.EncodeToString(txRaw)
 		}
 
 		psbtUTXOs = append(psbtUTXOs, psbt.PsbtUTXO{
-			TxID:            utxo.OutPoint.Hash.String(),
-			Vout:            utxo.OutPoint.Index,
-			ValueSat:        utxo.Value,
-			ScriptPubKeyHex: fmt.Sprintf("%x", utxo.PkScript),
-			NonWitnessTxHex: nonWitnessTxHex,
-			RedeemScriptHex: redeemScriptHex,
+			TxID:             utxo.OutPoint.Hash.String(),
+			Vout:             utxo.OutPoint.Index,
+			ValueSat:         utxo.Value,
+			ScriptPubKeyHex:  fmt.Sprintf("%x", utxo.PkScript),
+			NonWitnessTxHex:  nonWitnessTxHex,
+			RedeemScriptHex:  hex.EncodeToString(addrScriptInfo.RedeemScriptHashHex),
+			WitnessScriptHex: hex.EncodeToString(addrScriptInfo.WitnessProgramHex),
 		})
 	}
 
@@ -102,58 +96,6 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 	}
 
 	return result, nil
-}
-
-// legacy 的定义：P2PKH 或 P2SH（注意：是否嵌套 SegWit 由外层逻辑结合 redeemScript 再判定）
-func isLegacy(spk []byte) bool {
-	return isP2PKH(spk) || isP2SH(spk)
-}
-
-// 判断是否为传统 P2PKH: OP_DUP OP_HASH160 0x14 <20-byte> OP_EQUALVERIFY OP_CHECKSIG
-func isP2PKH(pkScript []byte) bool {
-	if len(pkScript) != 25 {
-		return false
-	}
-	return pkScript[0] == 0x76 && // OP_DUP
-		pkScript[1] == 0xa9 && // OP_HASH160
-		pkScript[2] == 0x14 && // PUSH_20
-		pkScript[23] == 0x88 && // OP_EQUALVERIFY
-		pkScript[24] == 0xac // OP_CHECKSIG
-}
-
-// 匹配传统P2SH
-func isP2SH(pkScript []byte) bool {
-	// 最典型 P2SH 长度 23 字节
-	if len(pkScript) != 23 {
-		return false
-	}
-	// OP_HASH160 (0xa9), PUSH_20 (0x14), ...20B..., OP_EQUAL (0x87)
-	return pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87
-}
-
-// 判断给定脚本是否为“SegWit 程序”本体（用于 P2SH redeemScript 判定是否 P2WPKH/P2WSH/Taproot）
-// 规则：首字节为 OP_0(0x00) 或 OP_1..OP_16(0x51..0x60)，随后紧跟一个 pushlen（最常见 20 或 32）
-// 注意：这里严格限制为 20/32 字节数据长度，满足 P2WPKH / P2WSH / P2TR 的常见情况。
-func isSegwitProgram(pkScript []byte) bool {
-	n := len(pkScript)
-	if n < 4 || n > 42 { // 2字节头 + 至少2字节数据，一般不超过 42
-		return false
-	}
-	ver := pkScript[0]
-	pushLen := int(pkScript[1])
-
-	// 版本校验：OP_0 或 OP_1..OP_16
-	if ver != 0x00 && (ver < 0x51 || ver > 0x60) {
-		return false
-	}
-
-	// 长度一致性：pushLen 必须等于余下数据长度
-	if 2+pushLen != n {
-		return false
-	}
-
-	// 只接受标准长度：20（v0-pkh）或 32（v0-wsh / v1-taproot）
-	return pushLen == 20 || pushLen == 32
 }
 
 func getRedeemScript(pk string) ([]byte, error) {

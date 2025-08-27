@@ -146,13 +146,6 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 	fmt.Printf("psbt struct: %+v\n", psbt.Packet)
 	fmt.Println("--------------------------------")
 
-	tx, err := client.DecodeRawTx(context.Background(), []byte(psbt.UnsignedTxHex))
-	if err != nil {
-		log.Fatalf("DecodeRawTx: %v", err)
-	}
-	fmt.Printf("tx: %+v\n", tx)
-	fmt.Println("--------------------------------")
-
 	// 	// 输出给调用方/前端（包含 OKX 可用的 PSBT base64）
 	// type BuildResult struct {
 	// 	PSBTBase64      string  `json:"psbt_base64"`        // 给 OKX
