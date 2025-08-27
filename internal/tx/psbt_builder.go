@@ -130,10 +130,7 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *TxInputParams) (str
 		input := psbtPacket.MustInput(i)
 
 		// 根据脚本类型填充相应的 UTXO 字段
-		scriptType, err := decoders.PKScriptToType(utxo.PkScript)
-		if err != nil {
-			return "", fmt.Errorf("failed to get script type: %w", err)
-		}
+		scriptType := decoders.PKScriptToType(utxo.PkScript)
 
 		switch scriptType {
 		case types.AddrP2PKH:
