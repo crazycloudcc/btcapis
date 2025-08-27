@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/crazycloudcc/btcapis"
+	"github.com/crazycloudcc/btcapis/internal/utils"
 )
 
 // const (
@@ -78,7 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
-	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
+	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", utils.SatsToBTC(confirmed), utils.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
 	// utxos, err := client.GetAddressUTXOs(ctx, addr)
