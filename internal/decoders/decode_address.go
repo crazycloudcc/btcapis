@@ -8,6 +8,15 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
+// 通过btcd库, 解析钱包地址, 获取钱包地址对应的锁定脚本.
+func AddressToPkScript(addr string) ([]byte, error) {
+	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
+	if err != nil {
+		return nil, fmt.Errorf("decode address: %w", err)
+	}
+	return txscript.PayToAddrScript(decodeAddr)
+}
+
 // 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
 func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)

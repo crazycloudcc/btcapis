@@ -7,6 +7,14 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
+func PKScriptToType(pkScript []byte) (types.AddressType, error) {
+	cls, _, _, err := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
+	if err != nil {
+		return types.AddrUnknown, err
+	}
+	return types.AddressType(cls), nil
+}
+
 func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 	cls, addrs, reqSigs, err := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
 	if err != nil {

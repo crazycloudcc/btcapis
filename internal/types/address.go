@@ -26,7 +26,7 @@ type AddressInfo struct {
 type AddressScriptInfo struct {
 	Address         string      // 地址
 	Typ             AddressType // 地址类型
-	ScriptPubKeyHex []byte      // 脚本哈希
+	ScriptPubKeyHex []byte      // 脚本哈希 => PKScript
 	ScriptAsm       string      // 脚本汇编
 
 	// “哈希/程序”层面（地址能直接给出的）
