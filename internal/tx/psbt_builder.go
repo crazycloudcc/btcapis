@@ -66,10 +66,20 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 	fmt.Printf("changeAmount: %d\n", changeAmount)
 
 	addrScriptInfo, err := decoders.DecodeAddress(inputParams.FromAddress[0])
+	fmt.Printf("========== RedeemScriptHashHex: %s\n", hex.EncodeToString(addrScriptInfo.RedeemScriptHashHex))
+	fmt.Printf("========== WitnessProgramHex: %s\n", hex.EncodeToString(addrScriptInfo.WitnessProgramHex))
+	fmt.Printf("========== TaprootOutputKeyHex: %s\n", hex.EncodeToString(addrScriptInfo.TaprootOutputKeyHex))
 
 	// 3. 将TxUTXO转为PsbtUTXO结构
 	psbtUTXOs := make([]psbt.PsbtUTXO, 0, len(selectedUTXOs))
 	for _, utxo := range selectedUTXOs {
+
+		pkScript := utxo.PkScript
+		if len(pkScript) == 0 {
+			// 如果没有 pkScript，尝试通过地址解析
+			pkScript = addrScriptInfo.ScriptPubKeyHex
+		}
+
 		nonWitnessTxHex := ""
 		if decoders.PKScriptToType(utxo.PkScript) == types.AddrP2PKH {
 			txRaw, err := c.bitcoindrpcClient.TxGetRaw(ctx, utxo.OutPoint.Hash.String(), false)
@@ -83,7 +93,7 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 			TxID:             utxo.OutPoint.Hash.String(),
 			Vout:             utxo.OutPoint.Index,
 			ValueSat:         utxo.Value,
-			ScriptPubKeyHex:  fmt.Sprintf("%x", utxo.PkScript),
+			ScriptPubKeyHex:  hex.EncodeToString(pkScript),
 			NonWitnessTxHex:  nonWitnessTxHex,
 			RedeemScriptHex:  hex.EncodeToString(addrScriptInfo.RedeemScriptHashHex),
 			WitnessScriptHex: hex.EncodeToString(addrScriptInfo.WitnessProgramHex),

@@ -111,6 +111,11 @@ func CreatePSBTForOKX(
 
 		spk, _ := hex.DecodeString(u.ScriptPubKeyHex)
 		inTypes = append(inTypes, detectType(spk))
+
+		fmt.Printf("debug info ============= spk: %s\n", u.ScriptPubKeyHex)
+		fmt.Printf("debug info ============= NonWitnessTxHex: %s\n", u.NonWitnessTxHex)
+		fmt.Printf("debug info ============= RedeemScriptHex: %s\n", u.RedeemScriptHex)
+		fmt.Printf("debug info ============= WitnessScriptHex: %s\n", u.WitnessScriptHex)
 	}
 
 	// 输出（先放收款/OP_RETURN，找零稍后）
