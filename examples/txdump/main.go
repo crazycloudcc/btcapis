@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -29,7 +28,7 @@ const (
 )
 
 func main() {
-	client, testClient := btcapis.New(
+	client := btcapis.New(
 		network,
 		rpcUrl,
 		rpcUser,
@@ -41,8 +40,9 @@ func main() {
 		log.Fatalf("New: %v", errors.New("client is nil"))
 	}
 
+	testClient := btcapis.NewTestClient(client)
 	if testClient == nil {
-		log.Fatalf("New: %v", errors.New("testClient is nil"))
+		log.Fatalf("NewTestClient: %v", errors.New("testClient is nil"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -63,7 +63,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("GetAddressScriptInfo: %v", err)
 	}
-	fmt.Printf("scriptInfo: %+v\n", scriptInfo)
+	// fmt.Printf("scriptInfo: %+v\n", scriptInfo)
 	fmt.Println("--------------------------------")
 
 	pkScript := scriptInfo.ScriptPubKeyHex
@@ -81,13 +81,13 @@ func main() {
 	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", btcapis.SatsToBTC(confirmed), btcapis.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
-	utxos, err := client.GetAddressUTXOs(ctx, addr)
-	if err != nil {
-		log.Fatalf("GetAddressUTXOs: %v", err)
-	}
-	outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
-	fmt.Println(string(outUtxos))
-	fmt.Println("--------------------------------")
+	// utxos, err := client.GetAddressUTXOs(ctx, addr)
+	// if err != nil {
+	// 	log.Fatalf("GetAddressUTXOs: %v", err)
+	// }
+	// outUtxos, _ := json.MarshalIndent(utxos, "", "  ")
+	// fmt.Println(string(outUtxos))
+	// fmt.Println("--------------------------------")
 
 	// testrpc(client, testClient)
 }

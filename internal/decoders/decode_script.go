@@ -26,7 +26,7 @@ func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 		out.Addresses[i] = a.EncodeAddress()
 	}
 
-	// printDecodePkScript(out)
+	printDecodePkScript(out)
 	return out, nil
 }
 

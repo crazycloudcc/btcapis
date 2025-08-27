@@ -10,21 +10,20 @@ import (
 )
 
 type Client struct {
-	// bitcoindrpcClient *bitcoindrpc.Client // bitcoindrpc接口调用集合.
-	// mempoolapisClient *mempoolapis.Client // mempool.space接口调用集合.
-	addressClient *address.Client // 钱包地址操作
-	txClient      *tx.Client      // 交易操作
-	chainClient   *chain.Client   // 链操作 - 无法归类到钱包和交易类的其他链上操作
+	bitcoindrpcClient *bitcoindrpc.Client // bitcoindrpc接口调用集合.
+	mempoolapisClient *mempoolapis.Client // mempool.space接口调用集合.
+	addressClient     *address.Client     // 钱包地址操作
+	txClient          *tx.Client          // 交易操作
+	chainClient       *chain.Client       // 链操作 - 无法归类到钱包和交易类的其他链上操作
 }
 
-func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) (*Client, *TestClient) {
+func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Client {
 	types.SetCurrentNetwork(network)
 
-	var bitcoindrpcClient *bitcoindrpc.Client = nil
-	var mempoolapisClient *mempoolapis.Client = nil
+	client := &Client{}
 
 	if rpc_url != "" {
-		bitcoindrpcClient = bitcoindrpc.New(rpc_url, rpc_user, rpc_pass, timeout)
+		client.bitcoindrpcClient = bitcoindrpc.New(rpc_url, rpc_user, rpc_pass, timeout)
 	}
 
 	mempool_rpc_url := ""
@@ -37,19 +36,19 @@ func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) (*Clie
 	}
 
 	if mempool_rpc_url != "" {
-		mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
+		client.mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
 	}
 
-	client := &Client{
-		addressClient: address.New(bitcoindrpcClient, mempoolapisClient),
-		txClient:      tx.New(bitcoindrpcClient, mempoolapisClient),
-		chainClient:   chain.New(bitcoindrpcClient, mempoolapisClient),
-	}
+	client.addressClient = address.New(client.bitcoindrpcClient, client.mempoolapisClient)
+	client.txClient = tx.New(client.bitcoindrpcClient, client.mempoolapisClient, client.addressClient)
+	client.chainClient = chain.New(client.bitcoindrpcClient, client.mempoolapisClient)
 
-	testClient := &TestClient{
-		bitcoindrpcClient: bitcoindrpcClient,
-		mempoolapisClient: mempoolapisClient,
-	}
+	return client
+}
 
-	return client, testClient
+func NewTestClient(client *Client) *TestClient {
+	return &TestClient{
+		bitcoindrpcClient: client.bitcoindrpcClient,
+		mempoolapisClient: client.mempoolapisClient,
+	}
 }

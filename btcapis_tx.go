@@ -83,7 +83,7 @@ func (c *Client) DecodeRawTx(ctx context.Context, rawtx []byte) (*types.Tx, erro
 	return ret, nil
 }
 
-// 普通转账交易
-func (c *Client) SendBTC(ctx context.Context, inputParams *TxInputParams) {
-	c.txClient.SendBTC(ctx, *inputParams)
-}
+// // 普通转账交易
+// func (c *Client) SendBTC(ctx context.Context, inputParams *TxInputParams) {
+// 	c.txClient.SendBTC(ctx, *inputParams)
+// }
