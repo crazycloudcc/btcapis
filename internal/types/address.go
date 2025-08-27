@@ -1,5 +1,7 @@
 package types
 
+import "github.com/btcsuite/btcd/txscript"
+
 // AddressType 标注常见地址/脚本族群。
 type AddressType string
 
@@ -15,19 +17,21 @@ const (
 
 // AddressInfo 结构体：存储地址解析后的信息
 type AddressInfo struct {
-	PKScript  []byte      // 原始脚本
-	Typ       AddressType // 地址类型
-	ReqSigs   int         // 需要签名数（多签时有意义）
-	Addresses []string    // 可能为 0/1/N
+	PKScript  []byte               // 原始脚本
+	Typ       AddressType          // 地址类型
+	Cls       txscript.ScriptClass // 脚本类型
+	ReqSigs   int                  // 需要签名数（多签时有意义）
+	Addresses []string             // 可能为 0/1/N
 }
 
 // AddressScriptInfo 结构体：存储地址解析后的脚本信息
 // 包含脚本类型、各种哈希值、见证版本等关键信息
 type AddressScriptInfo struct {
-	Address         string      // 地址
-	Typ             AddressType // 地址类型
-	ScriptPubKeyHex []byte      // 脚本哈希 => PKScript
-	ScriptAsm       string      // 脚本汇编
+	Address         string               // 地址
+	Typ             AddressType          // 地址类型
+	Cls             txscript.ScriptClass // 脚本类型
+	ScriptPubKeyHex []byte               // 脚本哈希 => PKScript
+	ScriptAsm       string               // 脚本汇编
 
 	// “哈希/程序”层面（地址能直接给出的）
 	PubKeyHashHex       []byte // P2PKH: 20 bytes

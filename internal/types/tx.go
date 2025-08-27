@@ -47,28 +47,15 @@ type TxOut struct {
 	Address    string // 可选, 用于显示 解析得到的人类可读地址
 }
 
-// ScriptClass 描述常见脚本类型（可选，用于索引/解析层；不是共识必须）
-type ScriptClass uint8
-
-const (
-	ScriptNonStandard         ScriptClass = iota
-	ScriptPubKey                          // P2PK (老式)
-	ScriptPubKeyHash                      // P2PKH
-	ScriptScriptHash                      // P2SH
-	ScriptWitnessV0PubKeyHash             // P2WPKH
-	ScriptWitnessV0ScriptHash             // P2WSH
-	ScriptWitnessV1Taproot                // P2TR (BIP341)
-)
-
 // UTXO：钱包/索引层常用的未花费输出结构（**链上共识并不定义该结构**，这是应用层抽象）
 type UTXO struct {
-	OutPoint OutPoint    // 定位该 UTXO
-	Value    int64       // satoshi
-	PkScript []byte      // 原始 scriptPubKey
-	Height   uint32      // 产出该 UTXO 的区块高度；mempool 可置 0 或特约定值
-	Coinbase bool        // 该 UTXO 是否来自 coinbase 交易
-	Address  string      // 解析得到的人类可读地址（可选）
-	Class    ScriptClass // 解析出的脚本类别（可选）
+	OutPoint OutPoint // 定位该 UTXO
+	Value    int64    // satoshi
+	PkScript []byte   // 原始 scriptPubKey
+	Height   uint32   // 产出该 UTXO 的区块高度；mempool 可置 0 或特约定值
+	Coinbase bool     // 该 UTXO 是否来自 coinbase 交易
+	Address  string   // 解析得到的人类可读地址（可选）
+	// Class    ScriptClass // 解析出的脚本类别（可选）
 	// 额外可选元数据（根据业务需要扩展）：
 	// Confirmations uint32
 	// ScriptVersion uint16   // 保留位；目前主网 script 版本固定

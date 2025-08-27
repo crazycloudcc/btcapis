@@ -7,12 +7,13 @@ import (
 	"fmt"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // AnalyzeInputReport 描述单个输入的自检结果
 type AnalyzeInputReport struct {
 	Index      int
-	ScriptType string
+	ScriptType types.AddressType
 	HasUtxo    bool
 	IsFinal    bool
 	Ready      bool
@@ -45,7 +46,7 @@ func (p *Packet) Analyze() AnalyzeReport {
 			ir.Ready = true
 			// 推断脚本类型：尽力从已知字段/UTXO获得
 			if spk := inputPkScriptForAnalyze(p, i); len(spk) > 0 {
-				ir.ScriptType = classifyScript(spk)
+				ir.ScriptType = decoders.PKScriptToType(spk)
 			}
 			ir.HasUtxo = in.WitnessUtxo != nil || in.NonWitnessUtxo != nil
 			res.Inputs = append(res.Inputs, ir)
@@ -77,17 +78,18 @@ func (p *Packet) Analyze() AnalyzeReport {
 		}
 
 		// 识别脚本类型
-		sType := classifyScript(pkScript)
+		sType := decoders.PKScriptToType(pkScript)
+
 		// P2SH 可进一步根据 RedeemScript 细分
-		if sType == "p2sh" && len(in.RedeemScript) > 0 {
-			inner := classifyScript(in.RedeemScript)
-			sType = fmt.Sprintf("p2sh(%s)", inner)
+		if sType == types.AddrP2SH && len(in.RedeemScript) > 0 {
+			// inner := decoders.PKScriptToType(in.RedeemScript)
+			sType = types.AddrP2SH
 		}
 		ir.ScriptType = sType
 
 		// 根据脚本类型判断缺失项（偏向最终化阶段需求）
 		switch sType {
-		case "p2wpkh":
+		case types.AddrP2WPKH:
 			if !ir.HasUtxo {
 				// segwit 最终化允许仅 NonWitnessUtxo，但 analyze 只标记 utxo
 			}
@@ -100,7 +102,7 @@ func (p *Packet) Analyze() AnalyzeReport {
 					ir.Missing = append(ir.Missing, "pubkey_match")
 				}
 			}
-		case "p2wsh":
+		case types.AddrP2WSH:
 			if len(in.WitnessScript) == 0 {
 				ir.Missing = append(ir.Missing, "witness_script")
 			} else {
@@ -130,24 +132,24 @@ func (p *Packet) Analyze() AnalyzeReport {
 					}
 				}
 			}
-		case "p2pkh":
+		case types.AddrP2PKH:
 			if in.NonWitnessUtxo == nil {
 				ir.Missing = append(ir.Missing, "non_witness_utxo")
 			}
 			if len(in.PartialSigs) == 0 {
 				ir.Missing = append(ir.Missing, "partial_sig")
 			}
-		case "p2sh":
+		case types.AddrP2SH:
 			if len(in.RedeemScript) == 0 {
 				ir.Missing = append(ir.Missing, "redeem_script")
 			} else {
-				inner := classifyScript(in.RedeemScript)
+				inner := decoders.PKScriptToType(in.RedeemScript)
 				switch inner {
-				case "p2wpkh":
+				case types.AddrP2WPKH:
 					if len(in.PartialSigs) == 0 {
 						ir.Missing = append(ir.Missing, "partial_sig")
 					}
-				case "p2wsh":
+				case types.AddrP2WSH:
 					if len(in.WitnessScript) == 0 {
 						ir.Missing = append(ir.Missing, "witness_script")
 					} else {
@@ -176,7 +178,7 @@ func (p *Packet) Analyze() AnalyzeReport {
 					}
 				}
 			}
-		case "p2tr":
+		case types.AddrP2TR:
 			// keypath or scriptpath
 			if len(in.TapLeafScript) > 0 || len(in.TapControlBlock) > 0 {
 				if len(in.TapLeafScript) == 0 || len(in.TapControlBlock) == 0 {

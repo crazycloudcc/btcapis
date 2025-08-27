@@ -11,15 +11,45 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
 	"golang.org/x/crypto/ripemd160"
 )
 
-// hash160 计算RIPEMD160(SHA256(data))
-func hash160(data []byte) []byte {
-	sha256Hash := sha256.Sum256(data)
-	ripemd160Hash := ripemd160.New()
-	ripemd160Hash.Write(sha256Hash[:])
-	return ripemd160Hash.Sum(nil)
+// FinalizeAll 尝试最终化所有输入
+func (p *Packet) FinalizeAll() error {
+	for i := range p.Inputs {
+		if err := p.FinalizeInput(i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Extract 当所有输入都最终化后，导出可广播的原始交易（wire.MsgTx）
+func (p *Packet) Extract() (*wire.MsgTx, error) {
+	var m *wire.MsgTx
+	if p.IsV0() {
+		if p.UnsignedTx == nil {
+			return nil, errors.New("psbt: v0 missing unsigned tx")
+		}
+		m = p.UnsignedTx.Copy()
+	} else {
+		var err error
+		m, err = p.buildMsgTxSkeleton()
+		if err != nil {
+			return nil, err
+		}
+	}
+	// 写入最终脚本
+	for i := range p.Inputs {
+		in := p.Inputs[i]
+		if len(in.FinalScriptWitness) == 0 && len(in.FinalScriptSig) == 0 {
+			return nil, fmt.Errorf("psbt: input %d not finalized", i)
+		}
+		m.TxIn[i].Witness = in.FinalScriptWitness
+		m.TxIn[i].SignatureScript = append([]byte(nil), in.FinalScriptSig...)
+	}
+	return m, nil
 }
 
 // FinalizeInput 根据已收集到的 PartialSigs/WitnessScript 等，生成最终的 ScriptSig/ScriptWitness。
@@ -54,32 +84,32 @@ func (p *Packet) FinalizeInput(i int) error {
 	}
 
 	// 识别脚本类型
-	scriptType := classifyScript(pkScript)
+	// scriptType := classifyScript(pkScript)
+	scriptType := decoders.PKScriptToType(pkScript)
 
 	// 不在此处统一强制需要 PartialSigs，由各分支自行校验（例如 tapscript 可无签名）。
-
 	switch scriptType {
-	case "p2wpkh":
+	case types.AddrP2WPKH:
 		if err := p.finalizeP2WPKH(in, pkScript, value); err != nil {
 			return fmt.Errorf("psbt: finalize p2wpkh input %d: %w", i, err)
 		}
 		return nil
-	case "p2wsh":
+	case types.AddrP2WSH:
 		if err := p.finalizeP2WSH(in, pkScript, value); err != nil {
 			return fmt.Errorf("psbt: finalize p2wsh input %d: %w", i, err)
 		}
 		return nil
-	case "p2tr":
+	case types.AddrP2TR:
 		if err := p.finalizeP2TR(in, pkScript, value); err != nil {
 			return fmt.Errorf("psbt: finalize p2tr input %d: %w", i, err)
 		}
 		return nil
-	case "p2sh":
+	case types.AddrP2SH:
 		if err := p.finalizeP2SH(in, pkScript, value); err != nil {
 			return fmt.Errorf("psbt: finalize p2sh input %d: %w", i, err)
 		}
 		return nil
-	case "p2pkh":
+	case types.AddrP2PKH:
 		if err := p.finalizeP2PKH(in, pkScript, value); err != nil {
 			return fmt.Errorf("psbt: finalize p2pkh input %d: %w", i, err)
 		}
@@ -89,35 +119,35 @@ func (p *Packet) FinalizeInput(i int) error {
 	}
 }
 
-// classifyScript 识别脚本类型
-func classifyScript(pkScript []byte) string {
-	n := len(pkScript)
-	if n == 0 {
-		return "unknown"
-	}
+// // classifyScript 识别脚本类型
+// func classifyScript(pkScript []byte) string {
+// 	n := len(pkScript)
+// 	if n == 0 {
+// 		return "unknown"
+// 	}
 
-	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
-	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
-		return "p2pkh"
-	}
-	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
-	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
-		return "p2sh"
-	}
-	// P2WPKH v0: OP_0 PUSH20 <20>
-	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
-		return "p2wpkh"
-	}
-	// P2WSH v0: OP_0 PUSH32 <32>
-	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
-		return "p2wsh"
-	}
-	// P2TR v1: OP_1 PUSH32 <32>
-	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
-		return "p2tr"
-	}
-	return "unknown"
-}
+// 	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
+// 	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
+// 		return "p2pkh"
+// 	}
+// 	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
+// 	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
+// 		return "p2sh"
+// 	}
+// 	// P2WPKH v0: OP_0 PUSH20 <20>
+// 	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
+// 		return "p2wpkh"
+// 	}
+// 	// P2WSH v0: OP_0 PUSH32 <32>
+// 	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
+// 		return "p2wsh"
+// 	}
+// 	// P2TR v1: OP_1 PUSH32 <32>
+// 	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
+// 		return "p2tr"
+// 	}
+// 	return "unknown"
+// }
 
 // finalizeP2WPKH 最终化P2WPKH输入
 func (p *Packet) finalizeP2WPKH(in *Input, pkScript []byte, value int64) error {
@@ -444,13 +474,14 @@ func (p *Packet) finalizeP2SH(in *Input, pkScript []byte, value int64) error {
 	}
 
 	// 检查redeemScript类型
-	redeemType := classifyScript(in.RedeemScript)
+	// redeemType := classifyScript(in.RedeemScript)
+	redeemType := decoders.PKScriptToType(in.RedeemScript)
 
 	switch redeemType {
-	case "p2wpkh":
+	case types.AddrP2WPKH:
 		// P2SH-P2WPKH: FinalScriptSig = PUSH(redeemScript), FinalWitness = [sig, pubkey]
 		return p.finalizeP2SHWrappedP2WPKH(in, pkScript, value)
-	case "p2wsh":
+	case types.AddrP2WSH:
 		// P2SH-P2WSH: FinalScriptSig = PUSH(redeemScript), FinalWitness = [..., witnessScript]
 		return p.finalizeP2SHWrappedP2WSH(in, pkScript, value)
 	default:
@@ -766,39 +797,10 @@ func (p *Packet) cleanupInput(in *Input) {
 	}
 }
 
-// FinalizeAll 尝试最终化所有输入
-func (p *Packet) FinalizeAll() error {
-	for i := range p.Inputs {
-		if err := p.FinalizeInput(i); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Extract 当所有输入都最终化后，导出可广播的原始交易（wire.MsgTx）
-func (p *Packet) Extract() (*wire.MsgTx, error) {
-	var m *wire.MsgTx
-	if p.IsV0() {
-		if p.UnsignedTx == nil {
-			return nil, errors.New("psbt: v0 missing unsigned tx")
-		}
-		m = p.UnsignedTx.Copy()
-	} else {
-		var err error
-		m, err = p.buildMsgTxSkeleton()
-		if err != nil {
-			return nil, err
-		}
-	}
-	// 写入最终脚本
-	for i := range p.Inputs {
-		in := p.Inputs[i]
-		if len(in.FinalScriptWitness) == 0 && len(in.FinalScriptSig) == 0 {
-			return nil, fmt.Errorf("psbt: input %d not finalized", i)
-		}
-		m.TxIn[i].Witness = in.FinalScriptWitness
-		m.TxIn[i].SignatureScript = append([]byte(nil), in.FinalScriptSig...)
-	}
-	return m, nil
+// hash160 计算RIPEMD160(SHA256(data))
+func hash160(data []byte) []byte {
+	sha256Hash := sha256.Sum256(data)
+	ripemd160Hash := ripemd160.New()
+	ripemd160Hash.Write(sha256Hash[:])
+	return ripemd160Hash.Sum(nil)
 }

@@ -7,12 +7,33 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
-func PKScriptToType(pkScript []byte) (types.AddressType, error) {
-	cls, _, _, err := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
-	if err != nil {
-		return types.AddrUnknown, err
+func PKScriptToType(pkScript []byte) types.AddressType {
+	n := len(pkScript)
+	if n == 0 {
+		return types.AddrUnknown
 	}
-	return types.AddressType(cls), nil
+
+	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
+	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
+		return types.AddrP2PKH
+	}
+	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
+	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
+		return types.AddrP2SH
+	}
+	// P2WPKH v0: OP_0 PUSH20 <20>
+	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
+		return types.AddrP2WPKH
+	}
+	// P2WSH v0: OP_0 PUSH32 <32>
+	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
+		return types.AddrP2WSH
+	}
+	// P2TR v1: OP_1 PUSH32 <32>
+	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
+		return types.AddrP2TR
+	}
+	return types.AddrUnknown
 }
 
 func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
@@ -20,7 +41,8 @@ func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &types.AddressInfo{PKScript: pkScript, Typ: types.AddressType(cls), ReqSigs: reqSigs}
+	fmt.Printf("DecodePkScript cls: %s\n", cls.String())
+	out := &types.AddressInfo{PKScript: pkScript, Typ: PKScriptToType(pkScript), Cls: cls, ReqSigs: reqSigs}
 	out.Addresses = make([]string, len(addrs))
 	for i, a := range addrs {
 		out.Addresses[i] = a.EncodeAddress()
@@ -38,7 +60,7 @@ func printDecodePkScript(info *types.AddressInfo) {
 	}
 
 	// 打印详细的解析结果，便于调试和验证
-	fmt.Printf("Addr2ScriptHash ===================================\n")
+	fmt.Printf("PKScript2Address ===================================\n")
 	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
 	fmt.Printf("[PKScript] %x\n", info.PKScript)
 	fmt.Printf("[AsmScriptOps] %v\n", ops)
@@ -46,7 +68,7 @@ func printDecodePkScript(info *types.AddressInfo) {
 	fmt.Printf("[AddressType] %s\n", info.Typ)
 	fmt.Printf("[ReqSigs] %d\n", info.ReqSigs)
 	fmt.Printf("[Addresses] %v\n", info.Addresses)
-	fmt.Printf("Addr2ScriptHash ===================================\n")
+	fmt.Printf("PKScript2Address ===================================\n")
 }
 
 // // Script2Addr 仅做最小化识别：p2pkh/p2sh/p2wpkh/p2wsh/p2tr，其余返回 "unknown"。

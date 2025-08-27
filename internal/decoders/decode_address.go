@@ -34,8 +34,8 @@ func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	}
 
 	// 2) 分类（模板识别）
-	class, _, _, _ := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
-	stype := class.String()
+	cls, _, _, _ := txscript.ExtractPkScriptAddrs(pkScript, types.CurrentNetworkParams)
+	stype := cls.String()
 
 	// 3) 反汇编
 	asm, _ := txscript.DisasmString(pkScript)
@@ -43,6 +43,7 @@ func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	info := &types.AddressScriptInfo{
 		Address:         addr,
 		Typ:             types.AddressType(stype),
+		Cls:             cls,
 		ScriptPubKeyHex: pkScript,
 		ScriptAsm:       asm,
 	}
@@ -50,7 +51,7 @@ func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	// 4) 通用：从地址提取底层 “脚本参数”（hash160 / program）
 	scriptParam := decodeAddr.ScriptAddress() // P2PKH/P2SH: 20B 哈希；SegWit：witness program
 
-	switch class {
+	switch cls {
 	case txscript.PubKeyHashTy:
 		info.PubKeyHashHex = scriptParam // 20B
 	case txscript.ScriptHashTy:
@@ -137,7 +138,7 @@ func printDecodeAddress(addr string, info *types.AddressScriptInfo) {
 	fmt.Printf("[Network] %s\n", types.CurrentNetwork)
 	fmt.Printf("[Address] %s\n", addr)
 	fmt.Printf("[AddressType] %s\n", info.Typ)
-
+	fmt.Printf("[ScriptClass] %s\n", info.Cls.String())
 	fmt.Printf("[PubKeyHash %d] %x\n", len(info.PubKeyHashHex), info.PubKeyHashHex)
 	fmt.Printf("[RedeemScript %d] %x\n", len(info.RedeemScriptHashHex), info.RedeemScriptHashHex)
 
