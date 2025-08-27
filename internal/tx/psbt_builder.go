@@ -1,30 +1,25 @@
 package tx
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/internal/types"
-	"golang.org/x/crypto/ripemd160"
 )
 
 // 转账交易-PSBT预览: 通过输入数据根据发起转账钱包地址的类型创建对应的PSBT交易数据, 这个数据将提交给外部okx插件钱包等进行签名.
-func (c *Client) buildPSBT(ctx context.Context, inputParams *TxInputParams) (string, error) {
+func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams) (*psbt.BuildResult, error) {
 
 	// 计算总输出金额（satoshi）
 	totalOutputSats := int64(0)
 	for _, amount := range inputParams.AmountBTC {
 		if amount <= 0 {
-			return "", fmt.Errorf("invalid amount: %f", amount)
+			return nil, fmt.Errorf("invalid amount: %f", amount)
 		}
 		totalOutputSats += int64(amount * 1e8)
 	}
@@ -41,19 +36,19 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *TxInputParams) (str
 	if locktime == 0 {
 		blockCount, err := c.bitcoindrpcClient.ChainGetBlockCount(ctx)
 		if err != nil {
-			return "", fmt.Errorf("failed to get block count: %w", err)
+			return nil, fmt.Errorf("failed to get block count: %w", err)
 		}
 		locktime = int64(blockCount)
 	}
 
 	// 1. 选币：从所有输入地址收集 UTXO
-	allUTXOs := make([]types.UTXO, 0)
+	allUTXOs := make([]types.TxUTXO, 0)
 	totalInputSats := int64(0)
 
 	for _, fromAddr := range inputParams.FromAddress {
 		utxos, err := c.addressClient.GetAddressUTXOs(ctx, fromAddr)
 		if err != nil {
-			return "", fmt.Errorf("failed to get UTXOs for %s: %w", fromAddr, err)
+			return nil, fmt.Errorf("failed to get UTXOs for %s: %w", fromAddr, err)
 		}
 		allUTXOs = append(allUTXOs, utxos...)
 		for _, utxo := range utxos {
@@ -62,196 +57,116 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *TxInputParams) (str
 	}
 
 	if totalInputSats < totalOutputSats {
-		return "", fmt.Errorf("insufficient funds: have %d sats, need %d sats", totalInputSats, totalOutputSats)
+		return nil, fmt.Errorf("insufficient funds: have %d sats, need %d sats", totalInputSats, totalOutputSats)
 	}
 
 	// 2. 选币算法：先尝试 BnB 精确匹配，失败再 knapsack
 	selectedUTXOs, changeAmount := selectCoins(allUTXOs, totalOutputSats, feeRate)
+	fmt.Printf("changeAmount: %d\n", changeAmount)
 
-	// 3. 构建未签名交易
-	msgTx := wire.NewMsgTx(2) // 版本 2 支持 Taproot
-	msgTx.LockTime = uint32(locktime)
-
-	// 添加输入
-	for _, utxo := range selectedUTXOs {
-		txHash, err := chainhash.NewHashFromStr(utxo.OutPoint.Hash.String())
-		if err != nil {
-			return "", fmt.Errorf("invalid tx hash: %w", err)
-		}
-
-		txIn := wire.NewTxIn(
-			&wire.OutPoint{
-				Hash:  *txHash,
-				Index: utxo.OutPoint.Index,
-			},
-			nil, // ScriptSig 为空
-			nil, // Witness 为空
-		)
-
-		// RBF 支持
-		if inputParams.Replaceable {
-			txIn.Sequence = 0xfffffffd // 允许替换
-		} else {
-			txIn.Sequence = 0xffffffff // 不允许替换
-		}
-
-		msgTx.AddTxIn(txIn)
-	}
-
-	// 添加输出
-	for i, toAddr := range inputParams.ToAddress {
-		amount := int64(inputParams.AmountBTC[i] * 1e8)
-		pkScript, err := decoders.AddressToPkScript(toAddr)
-		if err != nil {
-			return "", fmt.Errorf("invalid to address %s: %w", toAddr, err)
-		}
-
-		txOut := wire.NewTxOut(amount, pkScript)
-		msgTx.AddTxOut(txOut)
-	}
-
-	// 添加找零输出
-	if changeAmount > 546 { // dust limit
-		changeAddr := inputParams.FromAddress[0] // 使用第一个输入地址作为找零地址
-		changePkScript, err := decoders.AddressToPkScript(changeAddr)
-		if err != nil {
-			return "", fmt.Errorf("invalid change address: %w", err)
-		}
-
-		changeTxOut := wire.NewTxOut(changeAmount, changePkScript)
-		msgTx.AddTxOut(changeTxOut)
-	}
-
-	// 4. 创建 PSBT 并填充元数据
-	psbtPacket := psbt.NewV0FromUnsignedTx(msgTx)
-
-	// 填充每个输入的 UTXO 信息
-	for i, utxo := range selectedUTXOs {
-		input := psbtPacket.MustInput(i)
-
-		// 根据脚本类型填充相应的 UTXO 字段
-		scriptType := decoders.PKScriptToType(utxo.PkScript)
-
-		switch scriptType {
-		case types.AddrP2PKH:
-			// Legacy P2PKH：需要 NonWitnessUtxo
-			rawTx, err := c.GetRawTx(ctx, utxo.OutPoint.Hash.String())
-			if err != nil {
-				return "", fmt.Errorf("failed to get raw tx for input %d: %w", i, err)
-			}
-
-			msgTx := wire.NewMsgTx(0)
-			err = msgTx.Deserialize(bytes.NewReader(rawTx))
-			if err != nil {
-				return "", fmt.Errorf("failed to decode raw tx for input %d: %w", i, err)
-			}
-
-			input.NonWitnessUtxo = msgTx
-
-		case types.AddrP2SH:
-			// P2SH：需要检查是否为 P2SH-P2WPKH
-			if inputParams.PublicKey != "" {
-				// 构造 redeemScript = 0x0014<keyhash>
-				pubkeyBytes, err := hex.DecodeString(inputParams.PublicKey)
-				if err != nil {
-					return "", fmt.Errorf("invalid public key: %w", err)
-				}
-
-				keyHash := hash160(pubkeyBytes)
-				redeemScript := append([]byte{0x00, 0x14}, keyHash...)
-
-				// 验证 HASH160(redeemScript) 是否等于地址中的脚本哈希
-				scriptHash := hash160(redeemScript)
-				if !bytes.Equal(scriptHash, utxo.PkScript[2:22]) {
-					return "", fmt.Errorf("redeemScript hash mismatch for input %d", i)
-				}
-
-				input.RedeemScript = redeemScript
-				input.WitnessUtxo = &wire.TxOut{
-					Value:    utxo.Value,
-					PkScript: utxo.PkScript,
-				}
-			} else {
-				// 没有公钥，使用 NonWitnessUtxo
-				rawTx, err := c.GetRawTx(ctx, utxo.OutPoint.Hash.String())
-				if err != nil {
-					return "", fmt.Errorf("failed to get raw tx for input %d: %w", i, err)
-				}
-
-				msgTx := wire.NewMsgTx(0)
-				err = msgTx.Deserialize(bytes.NewReader(rawTx))
-				if err != nil {
-					return "", fmt.Errorf("failed to decode raw tx for input %d: %w", i, err)
-				}
-
-				input.NonWitnessUtxo = msgTx
-			}
-
-		case types.AddrP2WPKH:
-			// P2WPKH：使用 WitnessUtxo
-			input.WitnessUtxo = &wire.TxOut{
-				Value:    utxo.Value,
-				PkScript: utxo.PkScript,
-			}
-
-		case types.AddrP2TR:
-			// Taproot：使用 WitnessUtxo + 公钥
-			input.WitnessUtxo = &wire.TxOut{
-				Value:    utxo.Value,
-				PkScript: utxo.PkScript,
-			}
-
-			// OKX 要求：为每个输入附公钥
-			if inputParams.PublicKey != "" {
-				pubkeyBytes, err := hex.DecodeString(inputParams.PublicKey)
-				if err != nil {
-					return "", fmt.Errorf("invalid public key for taproot: %w", err)
-				}
-
-				// 转换为 x-only 公钥（32字节）
-				if len(pubkeyBytes) == 33 {
-					// 压缩公钥，取 x 坐标
-					pubkeyBytes = pubkeyBytes[1:33]
-				} else if len(pubkeyBytes) != 32 {
-					return "", fmt.Errorf("invalid public key length for taproot: %d", len(pubkeyBytes))
-				}
-
-				// 添加到自定义字段（OKX 可识别）
-				if input.PartialSigs == nil {
-					input.PartialSigs = make(map[string][]byte)
-				}
-				input.PartialSigs["taproot_pubkey"] = pubkeyBytes
-			}
-
-		default:
-			// 未知脚本类型，使用 NonWitnessUtxo
-			rawTx, err := c.GetRawTx(ctx, utxo.OutPoint.Hash.String())
-			if err != nil {
-				return "", fmt.Errorf("failed to get raw tx for input %d: %w", i, err)
-			}
-
-			msgTx := wire.NewMsgTx(0)
-			err = msgTx.Deserialize(bytes.NewReader(rawTx))
-			if err != nil {
-				return "", fmt.Errorf("failed to decode raw tx for input %d: %w", i, err)
-			}
-
-			input.NonWitnessUtxo = msgTx
-		}
-	}
-
-	// 5. 序列化 PSBT 为十六进制（OKX 需要）
-	psbtBytes, err := serializePSBT(psbtPacket)
+	// 3. 将TxUTXO转为PsbtUTXO结构
+	redeemBytes, err := getRedeemScript(inputParams.PublicKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize PSBT: %w", err)
+		return nil, fmt.Errorf("failed to get redeem script: %w", err)
+	}
+	psbtUTXOs := make([]psbt.PsbtUTXO, 0, len(selectedUTXOs))
+	for _, utxo := range selectedUTXOs {
+		nonWitnessTxHex := ""
+		redeemScriptHex := ""
+
+		if isP2SH(utxo.PkScript) && len(redeemBytes) > 0 && isSegwitProgram(redeemBytes) {
+			// P2SH-P2WPKH 或 P2SH-P2WSH
+			// 需要提供 redeemScript
+			redeemScriptHex = hex.EncodeToString(redeemBytes)
+		} else if isLegacy(utxo.PkScript) { // legacy 类型需要提供前序交易
+			raw, err := c.GetRawTx(ctx, utxo.OutPoint.Hash.String())
+			if err != nil {
+				return nil, fmt.Errorf("failed to get raw tx for UTXO %s:%d: %w", utxo.OutPoint.Hash.String(), utxo.OutPoint.Index, err)
+			}
+			nonWitnessTxHex = hex.EncodeToString(raw)
+		}
+
+		psbtUTXOs = append(psbtUTXOs, psbt.PsbtUTXO{
+			TxID:            utxo.OutPoint.Hash.String(),
+			Vout:            utxo.OutPoint.Index,
+			ValueSat:        utxo.Value,
+			ScriptPubKeyHex: fmt.Sprintf("%x", utxo.PkScript),
+			NonWitnessTxHex: nonWitnessTxHex,
+			RedeemScriptHex: redeemScriptHex,
+		})
 	}
 
-	psbtHex := hex.EncodeToString(psbtBytes)
-	return psbtHex, nil
+	result, err := psbt.CreatePSBTForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PSBT: %w", err)
+	}
+
+	return result, nil
+}
+
+// legacy 的定义：P2PKH 或 P2SH（注意：是否嵌套 SegWit 由外层逻辑结合 redeemScript 再判定）
+func isLegacy(spk []byte) bool {
+	return isP2PKH(spk) || isP2SH(spk)
+}
+
+// 判断是否为传统 P2PKH: OP_DUP OP_HASH160 0x14 <20-byte> OP_EQUALVERIFY OP_CHECKSIG
+func isP2PKH(pkScript []byte) bool {
+	if len(pkScript) != 25 {
+		return false
+	}
+	return pkScript[0] == 0x76 && // OP_DUP
+		pkScript[1] == 0xa9 && // OP_HASH160
+		pkScript[2] == 0x14 && // PUSH_20
+		pkScript[23] == 0x88 && // OP_EQUALVERIFY
+		pkScript[24] == 0xac // OP_CHECKSIG
+}
+
+// 匹配传统P2SH
+func isP2SH(pkScript []byte) bool {
+	// 最典型 P2SH 长度 23 字节
+	if len(pkScript) != 23 {
+		return false
+	}
+	// OP_HASH160 (0xa9), PUSH_20 (0x14), ...20B..., OP_EQUAL (0x87)
+	return pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87
+}
+
+// 判断给定脚本是否为“SegWit 程序”本体（用于 P2SH redeemScript 判定是否 P2WPKH/P2WSH/Taproot）
+// 规则：首字节为 OP_0(0x00) 或 OP_1..OP_16(0x51..0x60)，随后紧跟一个 pushlen（最常见 20 或 32）
+// 注意：这里严格限制为 20/32 字节数据长度，满足 P2WPKH / P2WSH / P2TR 的常见情况。
+func isSegwitProgram(pkScript []byte) bool {
+	n := len(pkScript)
+	if n < 4 || n > 42 { // 2字节头 + 至少2字节数据，一般不超过 42
+		return false
+	}
+	ver := pkScript[0]
+	pushLen := int(pkScript[1])
+
+	// 版本校验：OP_0 或 OP_1..OP_16
+	if ver != 0x00 && (ver < 0x51 || ver > 0x60) {
+		return false
+	}
+
+	// 长度一致性：pushLen 必须等于余下数据长度
+	if 2+pushLen != n {
+		return false
+	}
+
+	// 只接受标准长度：20（v0-pkh）或 32（v0-wsh / v1-taproot）
+	return pushLen == 20 || pushLen == 32
+}
+
+func getRedeemScript(pk string) ([]byte, error) {
+	pubkeyBytes, _ := hex.DecodeString(pk)       // 来自 OKX
+	pkh := btcutil.Hash160(pubkeyBytes)          // RIPEMD160(SHA256(pubkey))
+	redeem := append([]byte{0x00, 0x14}, pkh...) // 0x0014 || pkh
+	redeemScriptHex := hex.EncodeToString(redeem)
+	fmt.Printf("redeemScriptHex: %s\n", redeemScriptHex)
+	return redeem, nil
 }
 
 // 选币算法：先尝试 BnB 精确匹配，失败再 knapsack
-func selectCoins(utxos []types.UTXO, targetAmount int64, feeRate float64) ([]types.UTXO, int64) {
+func selectCoins(utxos []types.TxUTXO, targetAmount int64, feeRate float64) ([]types.TxUTXO, int64) {
 	// 按价值排序（降序）
 	sort.Slice(utxos, func(i, j int) bool {
 		return utxos[i].Value > utxos[j].Value
@@ -264,7 +179,7 @@ func selectCoins(utxos []types.UTXO, targetAmount int64, feeRate float64) ([]typ
 	totalNeeded := targetAmount + estimatedFee
 
 	// 尝试 BnB 精确匹配
-	selected := make([]types.UTXO, 0)
+	selected := make([]types.TxUTXO, 0)
 	currentSum := int64(0)
 
 	for _, utxo := range utxos {
@@ -282,7 +197,7 @@ func selectCoins(utxos []types.UTXO, targetAmount int64, feeRate float64) ([]typ
 	}
 
 	// BnB 失败，使用 knapsack 贪心算法
-	selected = make([]types.UTXO, 0)
+	selected = make([]types.TxUTXO, 0)
 	currentSum = int64(0)
 
 	for _, utxo := range utxos {
@@ -325,20 +240,20 @@ func estimateTransactionVSize(inputCount, outputCount int) int64 {
 	return baseSize + inputSize + outputSize
 }
 
-// 计算 HASH160 (RIPEMD160(SHA256(data)))
-func hash160(data []byte) []byte {
-	sha256Hash := sha256.Sum256(data)
-	ripemd160Hash := ripemd160.New()
-	ripemd160Hash.Write(sha256Hash[:])
-	return ripemd160Hash.Sum(nil)
-}
+// // 计算 HASH160 (RIPEMD160(SHA256(data)))
+// func hash160(data []byte) []byte {
+// 	sha256Hash := sha256.Sum256(data)
+// 	ripemd160Hash := ripemd160.New()
+// 	ripemd160Hash.Write(sha256Hash[:])
+// 	return ripemd160Hash.Sum(nil)
+// }
 
-// 序列化 PSBT 为字节
-func serializePSBT(packet *psbt.Packet) ([]byte, error) {
-	// 这里需要实现 PSBT 序列化
-	// 由于现有的 psbt 包还没有完整的序列化实现，先返回一个占位实现
-	// TODO: 实现完整的 PSBT 序列化
+// // 序列化 PSBT 为字节
+// func serializePSBT(packet *psbt.Packet) ([]byte, error) {
+// 	// 这里需要实现 PSBT 序列化
+// 	// 由于现有的 psbt 包还没有完整的序列化实现，先返回一个占位实现
+// 	// TODO: 实现完整的 PSBT 序列化
 
-	// 临时实现：返回一个简单的标识
-	return []byte("PSBT_PLACEHOLDER"), nil
-}
+// 	// 临时实现：返回一个简单的标识
+// 	return []byte("PSBT_PLACEHOLDER"), nil
+// }

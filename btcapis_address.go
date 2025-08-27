@@ -21,7 +21,7 @@ func (c *Client) GetAddressBalanceBTC(ctx context.Context, addr string) (confirm
 }
 
 // GetAddressUTXOs 返回地址拥有的UTXO.
-func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.UTXO, error) {
+func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.TxUTXO, error) {
 	return c.addressClient.GetAddressUTXOs(ctx, addr)
 }
 

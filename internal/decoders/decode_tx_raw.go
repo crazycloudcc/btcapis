@@ -24,7 +24,7 @@ func DecodeRawTx(raw []byte) (*types.Tx, error) {
 		w := make([][]byte, len(in.Witness))
 		copy(w, in.Witness)
 		t.TxIn[i] = types.TxIn{
-			PreviousOutPoint: types.OutPoint{
+			PreviousOutPoint: types.TxOutPoint{
 				Hash:  types.Hash32(in.PreviousOutPoint.Hash), // ccflag: 小端序
 				Index: in.PreviousOutPoint.Index,
 			},

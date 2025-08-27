@@ -9,6 +9,7 @@ import (
 
 	"github.com/crazycloudcc/btcapis"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
 // const (
@@ -94,7 +95,7 @@ func main() {
 	// fmt.Println(string(outUtxos))
 	// fmt.Println("--------------------------------")
 
-	// testrpc(client, testClient)
+	testrpc(client, testClient)
 }
 
 // 测试rpc是否正常
@@ -113,6 +114,54 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 	fmt.Printf("feerate1: %.2f (sats/vB)\n", feerate1*1e8/1000.0)
 	fmt.Printf("feerate2: %.2f (sats/vB)\n", feerate2)
 	fmt.Println("--------------------------------")
+
+	// // 构建、填充、签名交易 测试
+	txInputParams := &types.TxInputParams{
+		FromAddress: []string{ // 必须是钱包内地址
+			"tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
+		},
+		ToAddress: []string{
+			"tb1pn3rx2vtzfrazpqzfrftjzye5k3szvjskqlwvfu9pv9dtv6a8wv3sper2ce",
+		},
+		AmountBTC: []float64{
+			0.0001,
+		},
+		FeeRate:       1.0, // sat/vB
+		Locktime:      0,   // 0=默认最新区块高度
+		Replaceable:   true,
+		Data:          "hello world", // 可选
+		PublicKey:     "9a235c04856d94389042a8e12a500fe9a80dbdb090ec9b235762a706a475b20a",
+		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
+	}
+
+	psbt, err := client.CreatePSBT(context.Background(), txInputParams)
+	if err != nil {
+		log.Fatalf("CreatePSBT: %v", err)
+	}
+	fmt.Printf("psbt base64: %s\n", psbt.PSBTBase64)
+	fmt.Printf("unsigned tx hex: %s\n", psbt.UnsignedTxHex)
+	fmt.Printf("estimated vsize: %d vB\n", psbt.EstimatedVSize)
+	fmt.Printf("fee sat: %d sats\n", psbt.FeeSat)
+	fmt.Printf("change output index: %d\n", psbt.ChangeOutputIdx)
+	fmt.Printf("psbt struct: %+v\n", psbt.Packet)
+	fmt.Println("--------------------------------")
+
+	tx, err := client.DecodeRawTx(context.Background(), []byte(psbt.UnsignedTxHex))
+	if err != nil {
+		log.Fatalf("DecodeRawTx: %v", err)
+	}
+	fmt.Printf("tx: %+v\n", tx)
+	fmt.Println("--------------------------------")
+
+	// 	// 输出给调用方/前端（包含 OKX 可用的 PSBT base64）
+	// type BuildResult struct {
+	// 	PSBTBase64      string  `json:"psbt_base64"`        // 给 OKX
+	// 	UnsignedTxHex   string  `json:"unsigned_tx_hex"`    // 调试/核对
+	// 	Packet          *Packet `json:"-"`                  // 你自定义 psbt 结构，便于回写签名/Finalize
+	// 	EstimatedVSize  int     `json:"estimated_vsize_vb"` // 估算
+	// 	FeeSat          int64   `json:"fee_sat"`
+	// 	ChangeOutputIdx int     `json:"change_output_index"` // -1 表示没有找零
+	// }
 
 	// rawtx, err := client.BuildTx(context.Background())
 	// if err != nil {

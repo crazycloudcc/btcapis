@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/tx"
+	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/internal/types"
 )
 
@@ -97,7 +97,7 @@ func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, 
 }
 
 // 创建PSBT预览交易数据(钱包未签名状态)
-func (c *Client) CreatePSBT(ctx context.Context, inputParams *tx.TxInputParams) (string, error) {
+func (c *Client) CreatePSBT(ctx context.Context, inputParams *types.TxInputParams) (*psbt.BuildResult, error) {
 	fmt.Printf("create psbt: %+v\n", inputParams)
 	return c.txClient.SendBTCByPSBTPreview(ctx, inputParams)
 }
