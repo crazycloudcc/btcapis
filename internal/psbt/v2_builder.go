@@ -16,7 +16,6 @@ import (
 )
 
 // CreatePSBTv2ForOKX 构建 PSBT v2（BIP-370），并返回 v2 base64 字符串。
-// 逻辑与 v0 构建器对齐：先用临时 MsgTx 估 vsize/fee，再补找零，然后写入 v2 Packet。
 func CreatePSBTv2ForOKX(
 	inputParams *types.TxInputParams,
 	selectedUTXOs []PsbtUTXO,
@@ -32,7 +31,7 @@ func CreatePSBTv2ForOKX(
 		return nil, fmt.Errorf("必须提供找零地址")
 	}
 
-	// 1) 构造输出（收款 + 可选 OP_RETURN）
+	// 1) 构造输出
 	var outputs []*wire.TxOut
 	var totalSend int64
 	for i, to := range inputParams.ToAddress {
@@ -52,19 +51,16 @@ func CreatePSBTv2ForOKX(
 		totalSend += amt
 	}
 	if inputParams.Data != "" {
-		script, _ := txscript.NewScriptBuilder().
-			AddOp(txscript.OP_RETURN).
-			AddData([]byte(inputParams.Data)).
-			Script()
+		script, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddData([]byte(inputParams.Data)).Script()
 		outputs = append(outputs, &wire.TxOut{Value: 0, PkScript: script})
 	}
 
-	// 2) 组装临时 MsgTx 用于费率估算
+	// 2) 临时 MsgTx 用于费率估算
 	var inTypes []string
 	var totalIn int64
 	seq := uint32(0xFFFFFFFF)
 	if inputParams.Replaceable {
-		seq = 0xFFFFFFFD // RBF
+		seq = 0xFFFFFFFD
 	}
 	tmp := wire.NewMsgTx(2)
 	for _, u := range selectedUTXOs {
@@ -100,51 +96,24 @@ func CreatePSBTv2ForOKX(
 		changeIdx = len(tmp.TxOut) - 1
 	}
 
-	// 3) 构建 v2 Packet：设置全局(版本/txver/locktime/计数)与输入/输出元数据
+	// 3) 构建 v2 Packet
 	pkt := NewV2(2, uint32(inputParams.Locktime), len(selectedUTXOs), len(tmp.TxOut))
 	for i, u := range selectedUTXOs {
 		h, _ := chainhash.NewHashFromStr(u.TxID)
 		pkt.SetV2InputMeta(i, *h, u.Vout, seq)
 		spk, _ := hex.DecodeString(u.ScriptPubKeyHex)
 		typ := detectType(spk)
-		switch typ {
-		case "p2wpkh", "p2wsh", "p2tr":
-			// segwit 家族：WitnessUtxo 即可
+		if typ == "p2wpkh" || typ == "p2wsh" || typ == "p2tr" {
 			pkt.SetInputUtxo(i, &wire.TxOut{Value: u.ValueSat, PkScript: spk}, nil)
 			if typ == "p2wsh" && u.WitnessScriptHex != "" {
 				if ws, err := hex.DecodeString(u.WitnessScriptHex); err == nil {
 					pkt.SetInputScripts(i, nil, ws)
 				}
 			}
-		case "p2sh":
-			if u.RedeemScriptHex != "" { // p2sh-p2wpkh/p2wsh 或普通 p2sh
-				if rs, err := hex.DecodeString(u.RedeemScriptHex); err == nil {
-					pkt.SetInputUtxo(i, &wire.TxOut{Value: u.ValueSat, PkScript: spk}, nil)
-					pkt.SetInputScripts(i, rs, nil)
-					if u.WitnessScriptHex != "" { // p2sh-p2wsh
-						if ws, err := hex.DecodeString(u.WitnessScriptHex); err == nil {
-							pkt.SetInputScripts(i, rs, ws)
-						}
-					}
-				}
-			} else {
-				// 传统 p2sh：需要 NonWitnessUtxo
-				if u.NonWitnessTxHex == "" {
-					return nil, fmt.Errorf("utxo %s:%d 为 legacy，缺失 NonWitnessTx", u.TxID, u.Vout)
-				}
-				prevRaw, err := hex.DecodeString(u.NonWitnessTxHex)
-				if err != nil {
-					return nil, fmt.Errorf("解析 NonWitnessTxHex 失败: %v", err)
-				}
-				var prev wire.MsgTx
-				if err := prev.Deserialize(bytes.NewReader(prevRaw)); err != nil {
-					return nil, fmt.Errorf("反序列化 NonWitnessTx 失败: %v", err)
-				}
-				pkt.SetInputUtxo(i, nil, &prev)
-			}
-		case "p2pkh":
+		} else {
+			// 其他类型：必须 NonWitnessTx
 			if u.NonWitnessTxHex == "" {
-				return nil, fmt.Errorf("utxo %s:%d 为 legacy，缺失 NonWitnessTx", u.TxID, u.Vout)
+				return nil, fmt.Errorf("utxo %s:%d 缺失 NonWitnessTx", u.TxID, u.Vout)
 			}
 			prevRaw, err := hex.DecodeString(u.NonWitnessTxHex)
 			if err != nil {
@@ -155,62 +124,35 @@ func CreatePSBTv2ForOKX(
 				return nil, fmt.Errorf("反序列化 NonWitnessTx 失败: %v", err)
 			}
 			pkt.SetInputUtxo(i, nil, &prev)
-		default:
-			// 容错：未知脚本类型，优先用 witness_utxo；否则尝试 non_witness
-			if u.NonWitnessTxHex != "" {
-				prevRaw, err := hex.DecodeString(u.NonWitnessTxHex)
-				if err != nil {
-					return nil, fmt.Errorf("解析 NonWitnessTxHex 失败: %v", err)
-				}
-				var prev wire.MsgTx
-				if err := prev.Deserialize(bytes.NewReader(prevRaw)); err != nil {
-					return nil, fmt.Errorf("反序列化 NonWitnessTx 失败: %v", err)
-				}
-				pkt.SetInputUtxo(i, nil, &prev)
-			} else {
-				pkt.SetInputUtxo(i, &wire.TxOut{Value: u.ValueSat, PkScript: spk}, nil)
-			}
 		}
 	}
 	for i, o := range tmp.TxOut {
 		pkt.SetV2OutputMeta(i, o.Value, o.PkScript)
 	}
 
-	// 4) v2 序列化 → base64
+	// 4) v2 序列化
 	raw, err := SerializeV2Packet(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("v2 序列化失败: %v", err)
 	}
 	psbtB64 := base64.StdEncoding.EncodeToString(raw)
 
-	return &BuildResult{
-		PSBTBase64:      psbtB64,
-		UnsignedTxHex:   unsignedBtcTxHex(tmp),
-		Packet:          pkt,
-		EstimatedVSize:  estVSize,
-		FeeSat:          feeSat,
-		ChangeOutputIdx: changeIdx,
-	}, nil
+	return &BuildResult{PSBTBase64: psbtB64, UnsignedTxHex: unsignedBtcTxHex(tmp), Packet: pkt, EstimatedVSize: estVSize, FeeSat: feeSat, ChangeOutputIdx: changeIdx}, nil
 }
 
-// ====== PSBT v2 序列化：最小可用实现（BIP-370）======
-// 仅覆盖常用字段：VERSION/TxVersion/LockTime/Input&OutputCount、
-// Inputs: PrevTxid/Index/Sequence + (WitnessUtxo|NonWitnessUtxo) + 可选 Redeem/WitnessScript
-// Outputs: Amount/ScriptPubKey + 可选 Redeem/WitnessScript
-
-// 常量（key type）
+// ====== PSBT v2 序列化 ======
 const (
-	psbtMagic1 = 0x70 // 'p'
-	psbtMagic2 = 0x73 // 's'
-	psbtMagic3 = 0x62 // 'b'
-	psbtMagic4 = 0x74 // 't'
+	psbtMagic1 = 0x70
+	psbtMagic2 = 0x73
+	psbtMagic3 = 0x62
+	psbtMagic4 = 0x74
 	psbtSep    = 0xff
 
 	PSBT_GLOBAL_TX_VERSION    = 0x02
 	PSBT_GLOBAL_FALLBACK_LOCK = 0x03
 	PSBT_GLOBAL_INPUT_COUNT   = 0x04
 	PSBT_GLOBAL_OUTPUT_COUNT  = 0x05
-	PSBT_GLOBAL_VERSION       = 0xfb // 值为 2
+	PSBT_GLOBAL_VERSION       = 0xfb
 
 	PSBT_IN_NON_WITNESS_UTXO = 0x00
 	PSBT_IN_WITNESS_UTXO     = 0x01
@@ -226,42 +168,40 @@ const (
 	PSBT_OUT_SCRIPT         = 0x04
 )
 
-// SerializeV2Packet 把内存结构编码为 v2 PSBT 字节流
 func SerializeV2Packet(p *Packet) ([]byte, error) {
 	if p == nil || !p.IsV2() {
 		return nil, fmt.Errorf("psbt: SerializeV2Packet 仅支持 v2")
 	}
-	if p.TxVersion == 0 {
-		return nil, fmt.Errorf("psbt: v2 需要 TxVersion")
-	}
 	if len(p.Inputs) == 0 || len(p.Outputs) == 0 {
-		return nil, fmt.Errorf("psbt: v2 需要至少1个输入和1个输出")
+		return nil, fmt.Errorf("psbt: v2 至少1个输入和输出")
 	}
 
 	var b bytes.Buffer
-	// magic + sep
-	b.WriteByte(psbtMagic1)
-	b.WriteByte(psbtMagic2)
-	b.WriteByte(psbtMagic3)
-	b.WriteByte(psbtMagic4)
+	// magic
+	b.Write([]byte{'p', 's', 'b', 't'})
 	b.WriteByte(psbtSep)
 
-	// ---- Global map ----
-	writeKVU32(&b, PSBT_GLOBAL_VERSION, uint32(VersionV2))
+	// global
+	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2) // 写死 2，避免使用 VersionV2 未定义
 	writeKVI32(&b, PSBT_GLOBAL_TX_VERSION, p.TxVersion)
 	if p.LockTime != 0 {
 		writeKVU32(&b, PSBT_GLOBAL_FALLBACK_LOCK, p.LockTime)
 	}
-	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))
-	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs)))
-	b.WriteByte(0x00) // end global map
+	writeKVU32(&b, PSBT_GLOBAL_INPUT_COUNT, uint32(len(p.Inputs)))
+	writeKVU32(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint32(len(p.Outputs)))
+	b.WriteByte(0x00)
 
-	// ---- Inputs ----
 	for i, in := range p.Inputs {
-		if (in.PrevTxID == chainhash.Hash{}) {
-			return nil, fmt.Errorf("psbt: input %d 缺失 PrevTxID", i)
+		// PSBTv2 要求 prev txid 采用与交易序列化一致的字节序（LE）
+		{
+			h := in.PrevTxID
+			le := h
+			// 显式反转为 LE（btcd 的 Hash 为 BE 表示）
+			for i, j := 0, len(le)-1; i < j; i, j = i+1, j-1 {
+				le[i], le[j] = le[j], le[i]
+			}
+			writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, le[:])
 		}
-		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, in.PrevTxID[:])
 		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex)
 		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)
 		if in.WitnessUtxo != nil {
@@ -270,8 +210,6 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 			var nb bytes.Buffer
 			_ = in.NonWitnessUtxo.Serialize(&nb)
 			writeKV(&b, []byte{PSBT_IN_NON_WITNESS_UTXO}, nb.Bytes())
-		} else {
-			return nil, fmt.Errorf("psbt: input %d 缺少 utxo", i)
 		}
 		if len(in.RedeemScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_REDEEM_SCRIPT}, in.RedeemScript)
@@ -279,15 +217,12 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 		if len(in.WitnessScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_SCRIPT}, in.WitnessScript)
 		}
-		b.WriteByte(0x00) // end this input map
+		b.WriteByte(0x00)
+		_ = i
 	}
 
-	// ---- Outputs ----
 	for i, out := range p.Outputs {
 		writeKVI64(&b, PSBT_OUT_AMOUNT, out.Value)
-		if len(out.ScriptPubKey) == 0 {
-			return nil, fmt.Errorf("psbt: output %d 缺少 scriptPubKey", i)
-		}
 		writeKV(&b, []byte{PSBT_OUT_SCRIPT}, out.ScriptPubKey)
 		if len(out.RedeemScript) > 0 {
 			writeKV(&b, []byte{PSBT_OUT_REDEEM_SCRIPT}, out.RedeemScript)
@@ -295,13 +230,13 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 		if len(out.WitnessScript) > 0 {
 			writeKV(&b, []byte{PSBT_OUT_WITNESS_SCRIPT}, out.WitnessScript)
 		}
-		b.WriteByte(0x00) // end this output map
+		b.WriteByte(0x00)
+		_ = i
 	}
 
 	return b.Bytes(), nil
 }
 
-// ---- 编码辅助 ----
 func writeKV(buf *bytes.Buffer, key []byte, val []byte) {
 	writeVarInt(buf, uint64(len(key)))
 	buf.Write(key)
@@ -358,14 +293,12 @@ func writeVarInt(buf *bytes.Buffer, v uint64) {
 
 func serializeTxOut(o *wire.TxOut) []byte {
 	var b bytes.Buffer
-	// amount (LE64)
 	var tmp [8]byte
 	uv := uint64(o.Value)
 	for i := 0; i < 8; i++ {
 		tmp[i] = byte(uv >> (8 * i))
 	}
 	b.Write(tmp[:])
-	// script (varint + bytes)
 	writeVarInt(&b, uint64(len(o.PkScript)))
 	b.Write(o.PkScript)
 	return b.Bytes()
