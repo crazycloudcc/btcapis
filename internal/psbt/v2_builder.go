@@ -1,3 +1,4 @@
+// v2_builder.go (fixed)
 package psbt
 
 import (
@@ -135,7 +136,14 @@ func CreatePSBTv2ForOKX(
 	}
 	psbtB64 := base64.StdEncoding.EncodeToString(raw)
 
-	return &BuildResult{PSBTBase64: psbtB64, UnsignedTxHex: unsignedBtcTxHex(tmp), Packet: pkt, EstimatedVSize: estVSize, FeeSat: feeSat, ChangeOutputIdx: changeIdx}, nil
+	return &BuildResult{
+		PSBTBase64:      psbtB64,
+		UnsignedTxHex:   unsignedBtcTxHex(tmp),
+		Packet:          pkt,
+		EstimatedVSize:  estVSize,
+		FeeSat:          feeSat,
+		ChangeOutputIdx: changeIdx,
+	}, nil
 }
 
 // ====== PSBT v2 序列化 ======
@@ -146,17 +154,19 @@ const (
 	PSBT_GLOBAL_INPUT_COUNT   = 0x04
 	PSBT_GLOBAL_OUTPUT_COUNT  = 0x05
 	PSBT_GLOBAL_VERSION       = 0xfb
-	PSBT_IN_NON_WITNESS_UTXO  = 0x00
-	PSBT_IN_WITNESS_UTXO      = 0x01
-	PSBT_IN_REDEEM_SCRIPT     = 0x04
-	PSBT_IN_WITNESS_SCRIPT    = 0x05
-	PSBT_IN_PREVIOUS_TXID     = 0x0e
-	PSBT_IN_OUTPUT_INDEX      = 0x0f
-	PSBT_IN_SEQUENCE          = 0x10
-	PSBT_OUT_REDEEM_SCRIPT    = 0x00
-	PSBT_OUT_WITNESS_SCRIPT   = 0x01
-	PSBT_OUT_AMOUNT           = 0x03
-	PSBT_OUT_SCRIPT           = 0x04
+
+	PSBT_IN_NON_WITNESS_UTXO = 0x00
+	PSBT_IN_WITNESS_UTXO     = 0x01
+	PSBT_IN_REDEEM_SCRIPT    = 0x04
+	PSBT_IN_WITNESS_SCRIPT   = 0x05
+	PSBT_IN_PREVIOUS_TXID    = 0x0e
+	PSBT_IN_OUTPUT_INDEX     = 0x0f
+	PSBT_IN_SEQUENCE         = 0x10
+
+	PSBT_OUT_REDEEM_SCRIPT  = 0x00
+	PSBT_OUT_WITNESS_SCRIPT = 0x01
+	PSBT_OUT_AMOUNT         = 0x03
+	PSBT_OUT_SCRIPT         = 0x04
 )
 
 func SerializeV2Packet(p *Packet) ([]byte, error) {
@@ -168,74 +178,60 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 	}
 
 	var b bytes.Buffer
+	// magic
 	b.Write([]byte{'p', 's', 'b', 't'})
 	b.WriteByte(psbtSep)
 
-	// "psbt" 0xff 已写
-	// 全局区按键升序：0x02, 0x03(可选), 0x04, 0x05, 最后 0xfb
+	// 为了兼容某些实现：先写 Version
+	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2)
+	// 其它全局键
 	writeKVI32(&b, PSBT_GLOBAL_TX_VERSION, p.TxVersion)
 	if p.LockTime != 0 {
 		writeKVU32(&b, PSBT_GLOBAL_FALLBACK_LOCK, p.LockTime)
 	}
-	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))   // CompactSize
-	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs))) // CompactSize
-	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2)                              // 固定 4 字节 小端 = 02 00 00 00
-	b.WriteByte(0x00)                                                   // 结束 global map
+	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))
+	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs)))
+	// 结束 Global map
+	b.WriteByte(0x00)
 
+	// 输入们
 	for _, in := range p.Inputs {
-		// 0x00 Non-witness utxo (raw tx)
+		// 升序写键，尽量满足“规范序”
 		if in.NonWitnessUtxo != nil {
 			var nb bytes.Buffer
 			_ = in.NonWitnessUtxo.Serialize(&nb)
 			writeKV(&b, []byte{PSBT_IN_NON_WITNESS_UTXO}, nb.Bytes())
 		}
-		// 0x01 Witness utxo (amount+script)
 		if in.WitnessUtxo != nil {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_UTXO}, serializeTxOut(in.WitnessUtxo))
 		}
-		// 0x04/0x05 脚本（如有）
 		if len(in.RedeemScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_REDEEM_SCRIPT}, in.RedeemScript)
 		}
 		if len(in.WitnessScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_SCRIPT}, in.WitnessScript)
 		}
-
-		// 0x0e previous_txid
-		// **字节序见下一条**
-		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, prevTxidBytes(in.PrevTxID))
-
-		// 0x0f/0x10
-		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex) // u32 LE
-		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)      // u32 LE
-
-		b.WriteByte(0x00) // end of this input map
+		// prev txid 用小端（与原始交易序列化一致）
+		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, in.PrevTxID[:])
+		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex)
+		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)
+		b.WriteByte(0x00)
 	}
 
-	for i, out := range p.Outputs {
-		writeKVI64(&b, PSBT_OUT_AMOUNT, out.Value)
-		writeKV(&b, []byte{PSBT_OUT_SCRIPT}, out.ScriptPubKey)
+	// 输出们
+	for _, out := range p.Outputs {
 		if len(out.RedeemScript) > 0 {
 			writeKV(&b, []byte{PSBT_OUT_REDEEM_SCRIPT}, out.RedeemScript)
 		}
 		if len(out.WitnessScript) > 0 {
 			writeKV(&b, []byte{PSBT_OUT_WITNESS_SCRIPT}, out.WitnessScript)
 		}
+		writeKVI64(&b, PSBT_OUT_AMOUNT, out.Value)
+		writeKV(&b, []byte{PSBT_OUT_SCRIPT}, out.ScriptPubKey)
 		b.WriteByte(0x00)
-		_ = i
 	}
 
 	return b.Bytes(), nil
-}
-
-func prevTxidBytes(h chainhash.Hash) []byte {
-	// 将 chainhash.Hash 转为“人类可读”的大端序（RPC 展示）
-	// chainhash.Hash 实际底层是小端存储，需要反转一次得到大端表示
-	be := make([]byte, 32)
-	for i := 0; i < 32; i++ {
-		be[i] = h[31-i]
-	}
-	return be
 }
 
 func writeKV(buf *bytes.Buffer, key []byte, val []byte) {
@@ -253,9 +249,7 @@ func writeKVU32(buf *bytes.Buffer, keyType byte, v uint32) {
 	tmp[3] = byte(v >> 24)
 	writeKV(buf, []byte{keyType}, tmp[:])
 }
-
 func writeKVI32(buf *bytes.Buffer, keyType byte, v int32) { writeKVU32(buf, keyType, uint32(v)) }
-
 func writeKVI64(buf *bytes.Buffer, keyType byte, v int64) {
 	var tmp [8]byte
 	uv := uint64(v)
@@ -264,13 +258,11 @@ func writeKVI64(buf *bytes.Buffer, keyType byte, v int64) {
 	}
 	writeKV(buf, []byte{keyType}, tmp[:])
 }
-
 func writeKVVarInt(buf *bytes.Buffer, keyType byte, v uint64) {
 	vb := new(bytes.Buffer)
 	writeVarInt(vb, v)
 	writeKV(buf, []byte{keyType}, vb.Bytes())
 }
-
 func writeVarInt(buf *bytes.Buffer, v uint64) {
 	switch {
 	case v < 0xfd:
@@ -291,7 +283,6 @@ func writeVarInt(buf *bytes.Buffer, v uint64) {
 		}
 	}
 }
-
 func serializeTxOut(o *wire.TxOut) []byte {
 	var b bytes.Buffer
 	var tmp [8]byte
@@ -304,7 +295,6 @@ func serializeTxOut(o *wire.TxOut) []byte {
 	b.Write(o.PkScript)
 	return b.Bytes()
 }
-
 func unsignedBtcTxHex(m *wire.MsgTx) string {
 	var buf bytes.Buffer
 	_ = m.Serialize(&buf)
