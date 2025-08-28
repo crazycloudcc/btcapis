@@ -31,7 +31,7 @@ func CreatePSBTv2ForOKX(
 		return nil, fmt.Errorf("必须提供找零地址")
 	}
 
-	// 1) 构造输出
+	// 构造输出
 	var outputs []*wire.TxOut
 	var totalSend int64
 	for i, to := range inputParams.ToAddress {
@@ -55,7 +55,7 @@ func CreatePSBTv2ForOKX(
 		outputs = append(outputs, &wire.TxOut{Value: 0, PkScript: script})
 	}
 
-	// 2) 临时 MsgTx 用于费率估算
+	// 临时 MsgTx 用于费率估算
 	var inTypes []string
 	var totalIn int64
 	seq := uint32(0xFFFFFFFF)
@@ -96,7 +96,7 @@ func CreatePSBTv2ForOKX(
 		changeIdx = len(tmp.TxOut) - 1
 	}
 
-	// 3) 构建 v2 Packet
+	// 构建 v2 Packet
 	pkt := NewV2(2, uint32(inputParams.Locktime), len(selectedUTXOs), len(tmp.TxOut))
 	for i, u := range selectedUTXOs {
 		h, _ := chainhash.NewHashFromStr(u.TxID)
@@ -111,7 +111,6 @@ func CreatePSBTv2ForOKX(
 				}
 			}
 		} else {
-			// 其他类型：必须 NonWitnessTx
 			if u.NonWitnessTxHex == "" {
 				return nil, fmt.Errorf("utxo %s:%d 缺失 NonWitnessTx", u.TxID, u.Vout)
 			}
@@ -130,7 +129,6 @@ func CreatePSBTv2ForOKX(
 		pkt.SetV2OutputMeta(i, o.Value, o.PkScript)
 	}
 
-	// 4) v2 序列化
 	raw, err := SerializeV2Packet(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("v2 序列化失败: %v", err)
@@ -142,30 +140,23 @@ func CreatePSBTv2ForOKX(
 
 // ====== PSBT v2 序列化 ======
 const (
-	psbtMagic1 = 0x70
-	psbtMagic2 = 0x73
-	psbtMagic3 = 0x62
-	psbtMagic4 = 0x74
-	psbtSep    = 0xff
-
+	psbtSep                   = 0xff
 	PSBT_GLOBAL_TX_VERSION    = 0x02
 	PSBT_GLOBAL_FALLBACK_LOCK = 0x03
 	PSBT_GLOBAL_INPUT_COUNT   = 0x04
 	PSBT_GLOBAL_OUTPUT_COUNT  = 0x05
 	PSBT_GLOBAL_VERSION       = 0xfb
-
-	PSBT_IN_NON_WITNESS_UTXO = 0x00
-	PSBT_IN_WITNESS_UTXO     = 0x01
-	PSBT_IN_REDEEM_SCRIPT    = 0x04
-	PSBT_IN_WITNESS_SCRIPT   = 0x05
-	PSBT_IN_PREVIOUS_TXID    = 0x0e
-	PSBT_IN_OUTPUT_INDEX     = 0x0f
-	PSBT_IN_SEQUENCE         = 0x10
-
-	PSBT_OUT_REDEEM_SCRIPT  = 0x00
-	PSBT_OUT_WITNESS_SCRIPT = 0x01
-	PSBT_OUT_AMOUNT         = 0x03
-	PSBT_OUT_SCRIPT         = 0x04
+	PSBT_IN_NON_WITNESS_UTXO  = 0x00
+	PSBT_IN_WITNESS_UTXO      = 0x01
+	PSBT_IN_REDEEM_SCRIPT     = 0x04
+	PSBT_IN_WITNESS_SCRIPT    = 0x05
+	PSBT_IN_PREVIOUS_TXID     = 0x0e
+	PSBT_IN_OUTPUT_INDEX      = 0x0f
+	PSBT_IN_SEQUENCE          = 0x10
+	PSBT_OUT_REDEEM_SCRIPT    = 0x00
+	PSBT_OUT_WITNESS_SCRIPT   = 0x01
+	PSBT_OUT_AMOUNT           = 0x03
+	PSBT_OUT_SCRIPT           = 0x04
 )
 
 func SerializeV2Packet(p *Packet) ([]byte, error) {
@@ -177,47 +168,52 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 	}
 
 	var b bytes.Buffer
-	// magic
 	b.Write([]byte{'p', 's', 'b', 't'})
 	b.WriteByte(psbtSep)
 
-	// global
-	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2) // 写死 2，避免使用 VersionV2 未定义
+	// 按键升序写入全局区：0x02,0x03,0x04,0x05,最后 0xFB
 	writeKVI32(&b, PSBT_GLOBAL_TX_VERSION, p.TxVersion)
 	if p.LockTime != 0 {
 		writeKVU32(&b, PSBT_GLOBAL_FALLBACK_LOCK, p.LockTime)
 	}
 	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))
 	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs)))
-	b.WriteByte(0x00)
+	// 最后写 PSBT v2 版本号 (u32 LE = 2)
+	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2)
+	b.WriteByte(0x00) // 结束 global map
 
 	for i, in := range p.Inputs {
-		// PSBTv2 要求 prev txid 采用与交易序列化一致的字节序（LE）
-		{
-			h := in.PrevTxID
-			le := h
-			// 显式反转为 LE（btcd 的 Hash 为 BE 表示）
-			for i, j := 0, len(le)-1; i < j; i, j = i+1, j-1 {
-				le[i], le[j] = le[j], le[i]
-			}
-			writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, le[:])
-		}
-		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex)
-		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)
-		if in.WitnessUtxo != nil {
-			writeKV(&b, []byte{PSBT_IN_WITNESS_UTXO}, serializeTxOut(in.WitnessUtxo))
-		} else if in.NonWitnessUtxo != nil {
+		// 0x00 Non-witness UTXO
+		if in.NonWitnessUtxo != nil {
 			var nb bytes.Buffer
 			_ = in.NonWitnessUtxo.Serialize(&nb)
 			writeKV(&b, []byte{PSBT_IN_NON_WITNESS_UTXO}, nb.Bytes())
 		}
+		// 0x01 Witness UTXO
+		if in.WitnessUtxo != nil {
+			writeKV(&b, []byte{PSBT_IN_WITNESS_UTXO}, serializeTxOut(in.WitnessUtxo))
+		}
+		// 0x04/0x05 脚本（如有）
 		if len(in.RedeemScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_REDEEM_SCRIPT}, in.RedeemScript)
 		}
 		if len(in.WitnessScript) > 0 {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_SCRIPT}, in.WitnessScript)
 		}
-		b.WriteByte(0x00)
+
+		// 0x0e Previous TXID —— 写入大端（RPC/人类可读顺序）
+		be := make([]byte, 32)
+		copy(be, in.PrevTxID[:])
+		for l, r := 0, len(be)-1; l < r; l, r = l+1, r-1 {
+			be[l], be[r] = be[r], be[l]
+		}
+		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, be)
+
+		// 0x0f / 0x10
+		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex) // u32 LE
+		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)      // u32 LE
+
+		b.WriteByte(0x00) // 结束本 input map
 		_ = i
 	}
 
