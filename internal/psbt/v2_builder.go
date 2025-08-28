@@ -187,8 +187,8 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 	if p.LockTime != 0 {
 		writeKVU32(&b, PSBT_GLOBAL_FALLBACK_LOCK, p.LockTime)
 	}
-	writeKVU32(&b, PSBT_GLOBAL_INPUT_COUNT, uint32(len(p.Inputs)))
-	writeKVU32(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint32(len(p.Outputs)))
+	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))
+	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs)))
 	b.WriteByte(0x00)
 
 	for i, in := range p.Inputs {
