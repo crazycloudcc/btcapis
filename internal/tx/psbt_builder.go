@@ -7,7 +7,6 @@ import (
 	"math"
 	"sort"
 
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/internal/types"
@@ -108,14 +107,14 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 	return result, nil
 }
 
-func getRedeemScript(pk string) ([]byte, error) {
-	pubkeyBytes, _ := hex.DecodeString(pk)       // 来自 OKX
-	pkh := btcutil.Hash160(pubkeyBytes)          // RIPEMD160(SHA256(pubkey))
-	redeem := append([]byte{0x00, 0x14}, pkh...) // 0x0014 || pkh
-	redeemScriptHex := hex.EncodeToString(redeem)
-	fmt.Printf("redeemScriptHex: %s\n", redeemScriptHex)
-	return redeem, nil
-}
+// func getRedeemScript(pk string) ([]byte, error) {
+// 	pubkeyBytes, _ := hex.DecodeString(pk)       // 来自 OKX
+// 	pkh := btcutil.Hash160(pubkeyBytes)          // RIPEMD160(SHA256(pubkey))
+// 	redeem := append([]byte{0x00, 0x14}, pkh...) // 0x0014 || pkh
+// 	redeemScriptHex := hex.EncodeToString(redeem)
+// 	fmt.Printf("redeemScriptHex: %s\n", redeemScriptHex)
+// 	return redeem, nil
+// }
 
 // 选币算法：先尝试 BnB 精确匹配，失败再 knapsack
 func selectCoins(utxos []types.TxUTXO, targetAmount int64, feeRate float64) ([]types.TxUTXO, int64) {
@@ -191,21 +190,3 @@ func estimateTransactionVSize(inputCount, outputCount int) int64 {
 
 	return baseSize + inputSize + outputSize
 }
-
-// // 计算 HASH160 (RIPEMD160(SHA256(data)))
-// func hash160(data []byte) []byte {
-// 	sha256Hash := sha256.Sum256(data)
-// 	ripemd160Hash := ripemd160.New()
-// 	ripemd160Hash.Write(sha256Hash[:])
-// 	return ripemd160Hash.Sum(nil)
-// }
-
-// // 序列化 PSBT 为字节
-// func serializePSBT(packet *psbt.Packet) ([]byte, error) {
-// 	// 这里需要实现 PSBT 序列化
-// 	// 由于现有的 psbt 包还没有完整的序列化实现，先返回一个占位实现
-// 	// TODO: 实现完整的 PSBT 序列化
-
-// 	// 临时实现：返回一个简单的标识
-// 	return []byte("PSBT_PLACEHOLDER"), nil
-// }

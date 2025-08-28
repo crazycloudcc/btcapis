@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/internal/types"
@@ -87,28 +86,4 @@ func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	}
 
 	return ret, err
-}
-
-// 构建交易 createrawtransaction
-func (c *Client) createTx(ctx context.Context, dto bitcoindrpc.TxCreateRawDTO) ([]byte, error) {
-	return c.bitcoindrpcClient.TxCreateRaw(ctx, dto)
-}
-
-// 填充交易费用
-func (c *Client) fundTx(ctx context.Context, rawtx string, options bitcoindrpc.TxFundOptionsDTO) (bitcoindrpc.TxFundRawResultDTO, error) {
-	return c.bitcoindrpcClient.TxFundRaw(ctx, rawtx, options)
-}
-
-// 签名交易
-func (c *Client) signTx(ctx context.Context, rawtx string) (string, error) {
-	return c.bitcoindrpcClient.TxSignRawWithKey(ctx, rawtx)
-}
-
-// 广播交易
-func (c *Client) broadcastTx(ctx context.Context, rawtx string) (string, error) {
-	bin, err := hex.DecodeString(rawtx)
-	if err != nil {
-		return "", err
-	}
-	return c.bitcoindrpcClient.TxBroadcast(ctx, bin)
 }
