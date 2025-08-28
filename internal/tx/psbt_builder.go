@@ -99,9 +99,16 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 		})
 	}
 
-	result, err := psbt.CreatePSBTForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
+	// // 创建v0版本psbt
+	// result, err := psbt.CreatePSBTForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create PSBT: %w", err)
+	// }
+
+	// 创建v2版本psbt
+	result, err := psbt.CreatePSBTv2ForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create PSBT: %w", err)
+		return nil, fmt.Errorf("failed to create PSBT v2: %w", err)
 	}
 
 	return result, nil
