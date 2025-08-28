@@ -171,25 +171,25 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 	b.Write([]byte{'p', 's', 'b', 't'})
 	b.WriteByte(psbtSep)
 
-	// 按键升序写入全局区：0x02,0x03,0x04,0x05,最后 0xFB
+	// "psbt" 0xff 已写
+	// 全局区按键升序：0x02, 0x03(可选), 0x04, 0x05, 最后 0xfb
 	writeKVI32(&b, PSBT_GLOBAL_TX_VERSION, p.TxVersion)
 	if p.LockTime != 0 {
 		writeKVU32(&b, PSBT_GLOBAL_FALLBACK_LOCK, p.LockTime)
 	}
-	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))
-	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs)))
-	// 最后写 PSBT v2 版本号 (u32 LE = 2)
-	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2)
-	b.WriteByte(0x00) // 结束 global map
+	writeKVVarInt(&b, PSBT_GLOBAL_INPUT_COUNT, uint64(len(p.Inputs)))   // CompactSize
+	writeKVVarInt(&b, PSBT_GLOBAL_OUTPUT_COUNT, uint64(len(p.Outputs))) // CompactSize
+	writeKVU32(&b, PSBT_GLOBAL_VERSION, 2)                              // 固定 4 字节 小端 = 02 00 00 00
+	b.WriteByte(0x00)                                                   // 结束 global map
 
-	for i, in := range p.Inputs {
-		// 0x00 Non-witness UTXO
+	for _, in := range p.Inputs {
+		// 0x00 Non-witness utxo (raw tx)
 		if in.NonWitnessUtxo != nil {
 			var nb bytes.Buffer
 			_ = in.NonWitnessUtxo.Serialize(&nb)
 			writeKV(&b, []byte{PSBT_IN_NON_WITNESS_UTXO}, nb.Bytes())
 		}
-		// 0x01 Witness UTXO
+		// 0x01 Witness utxo (amount+script)
 		if in.WitnessUtxo != nil {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_UTXO}, serializeTxOut(in.WitnessUtxo))
 		}
@@ -201,20 +201,15 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 			writeKV(&b, []byte{PSBT_IN_WITNESS_SCRIPT}, in.WitnessScript)
 		}
 
-		// 0x0e Previous TXID —— 写入大端（RPC/人类可读顺序）
-		be := make([]byte, 32)
-		copy(be, in.PrevTxID[:])
-		for l, r := 0, len(be)-1; l < r; l, r = l+1, r-1 {
-			be[l], be[r] = be[r], be[l]
-		}
-		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, be)
+		// 0x0e previous_txid
+		// **字节序见下一条**
+		writeKV(&b, []byte{PSBT_IN_PREVIOUS_TXID}, prevTxidBytes(in.PrevTxID))
 
-		// 0x0f / 0x10
+		// 0x0f/0x10
 		writeKVU32(&b, PSBT_IN_OUTPUT_INDEX, in.PrevIndex) // u32 LE
 		writeKVU32(&b, PSBT_IN_SEQUENCE, in.Sequence)      // u32 LE
 
-		b.WriteByte(0x00) // 结束本 input map
-		_ = i
+		b.WriteByte(0x00) // end of this input map
 	}
 
 	for i, out := range p.Outputs {
@@ -231,6 +226,16 @@ func SerializeV2Packet(p *Packet) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
+}
+
+func prevTxidBytes(h chainhash.Hash) []byte {
+	// 将 chainhash.Hash 转为“人类可读”的大端序（RPC 展示）
+	// chainhash.Hash 实际底层是小端存储，需要反转一次得到大端表示
+	be := make([]byte, 32)
+	for i := 0; i < 32; i++ {
+		be[i] = h[31-i]
+	}
+	return be
 }
 
 func writeKV(buf *bytes.Buffer, key []byte, val []byte) {
