@@ -11,7 +11,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 	"golang.org/x/crypto/ripemd160"
 )
 

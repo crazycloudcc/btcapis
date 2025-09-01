@@ -8,7 +8,7 @@ import (
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // 转账交易-PSBT预览: 通过输入数据根据发起转账钱包地址的类型创建对应的PSBT交易数据, 这个数据将提交给外部okx插件钱包等进行签名.

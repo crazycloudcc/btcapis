@@ -14,7 +14,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // UTXO 最少需要这些信息（优先走 segwit，legacy 需要 nonWitnessTx）

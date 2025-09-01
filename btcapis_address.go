@@ -3,8 +3,8 @@ package btcapis
 import (
 	"context"
 
-	"github.com/crazycloudcc/btcapis/internal/types"
 	"github.com/crazycloudcc/btcapis/internal/utils"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // GetAddressBalance 返回地址的确认余额和未确认余额.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/crazycloudcc/btcapis"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // const (

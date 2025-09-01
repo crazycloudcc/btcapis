@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // 反汇编脚本

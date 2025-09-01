@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // GetAddressScriptInfo 通过地址, 获取地址的锁定脚本信息.

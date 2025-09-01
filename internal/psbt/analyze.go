@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // AnalyzeInputReport 描述单个输入的自检结果

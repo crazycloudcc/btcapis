@@ -6,7 +6,7 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/address"
 	"github.com/crazycloudcc/btcapis/internal/chain"
 	"github.com/crazycloudcc/btcapis/internal/tx"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 type Client struct {

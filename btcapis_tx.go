@@ -6,7 +6,7 @@ import (
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/internal/psbt"
-	"github.com/crazycloudcc/btcapis/internal/types"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // // 构建交易 (调试已经完成)
