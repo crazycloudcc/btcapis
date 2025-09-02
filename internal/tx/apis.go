@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
@@ -34,6 +35,9 @@ func (c *Client) SendBTCByPSBT(ctx context.Context, psbt string) (string, error)
 		}
 		return true
 	}
+	fmt.Printf("psbt input len: %d, isHex: %v\n", len(normalized), isHex(normalized))
+
+	// 十六进制转base64
 	if isHex(normalized) {
 		bin, err := hex.DecodeString(normalized)
 		if err != nil {
@@ -43,16 +47,25 @@ func (c *Client) SendBTCByPSBT(ctx context.Context, psbt string) (string, error)
 	} else {
 		psbtBase64 = normalized
 	}
+	fmt.Printf("psbt base64 len: %d\n", len(psbtBase64))
+	fmt.Printf("psbt base64: %s\n", psbtBase64)
 
 	// finalizepsbt -> 原始交易hex
-	rawHex, err := c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
+	finalizeData, err := c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
+	if err != nil || !finalizeData.Complete {
+		fmt.Printf("finalizepsbt error: %v, complete: %v\n", err, finalizeData.Complete)
+		return "", err
+	}
+	fmt.Println("finalize rawHex: ", finalizeData.Hex)
+
+	bin, err := hex.DecodeString(finalizeData.Hex)
 	if err != nil {
 		return "", err
 	}
-	bin, err := hex.DecodeString(rawHex)
-	if err != nil {
-		return "", err
-	}
+
+	fmt.Println("broadcast tx len: ", len(bin))
+
+	// 广播交易
 	return c.bitcoindrpcClient.TxBroadcast(ctx, bin)
 }
 

@@ -80,6 +80,7 @@ func CreatePSBTForOKX(
 		outputs = append(outputs, &wire.TxOut{Value: amt, PkScript: pkScript})
 		totalSend += amt
 	}
+
 	if inputParams.Data != "" {
 		script, _ := txscript.NewScriptBuilder().
 			AddOp(txscript.OP_RETURN).
@@ -98,6 +99,7 @@ func CreatePSBTForOKX(
 	if inputParams.Replaceable {
 		seq = 0xFFFFFFFD // 明确 RBF
 	}
+
 	for _, u := range selectedUTXOs {
 		h, err := chainhash.NewHashFromStr(u.TxID)
 		if err != nil {
@@ -272,7 +274,6 @@ func CreatePSBTForOKX(
 		FeeSat:          feeSat,
 		ChangeOutputIdx: changeIdx,
 	}, nil
-
 }
 
 // -------------------- 辅助函数 --------------------

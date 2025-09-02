@@ -46,10 +46,10 @@ func (c *Client) TxSignRawWithKey(ctx context.Context, rawtx string) (string, er
 }
 
 // 完成psbt交易
-func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (string, error) {
-	var signedTx string
+func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (*SignedTxDTO, error) {
+	var signedTx *SignedTxDTO
 	if err := c.rpcCall(ctx, "finalizepsbt", []any{psbt}, &signedTx); err != nil {
-		return "", err
+		return nil, err
 	}
 	return signedTx, nil
 }

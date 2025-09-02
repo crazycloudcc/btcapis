@@ -94,3 +94,9 @@ type ValidateAddressDTO struct {
 	WitnessVersion int    `json:"witness_version"` // 见证版本
 	WitnessProgram string `json:"witness_program"` // 见证程序
 }
+
+// 经过bitcoin core的finalizepsbt处理后的交易数据结构
+type SignedTxDTO struct {
+	Hex      string `json:"hex"`      // 交易十六进制
+	Complete bool   `json:"complete"` // 是否完成
+}

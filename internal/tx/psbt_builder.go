@@ -71,6 +71,7 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 
 	// 3. 将TxUTXO转为PsbtUTXO结构
 	psbtUTXOs := make([]psbt.PsbtUTXO, 0, len(selectedUTXOs))
+
 	for _, utxo := range selectedUTXOs {
 
 		pkScript := utxo.PkScript
@@ -83,6 +84,7 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 		if decoders.PKScriptToType(utxo.PkScript) == types.AddrP2PKH {
 			txRaw, err := c.bitcoindrpcClient.TxGetRaw(ctx, utxo.OutPoint.Hash.String(), false)
 			if err != nil {
+				fmt.Print("Error fetching raw tx \n")
 				return nil, fmt.Errorf("failed to get raw tx for %s: %w", utxo.OutPoint.Hash.String(), err)
 			}
 			nonWitnessTxHex = hex.EncodeToString(txRaw)
@@ -99,17 +101,20 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 		})
 	}
 
-	// // 创建v0版本psbt
-	// result, err := psbt.CreatePSBTForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
+	// 创建v0版本psbt
+	result, err := psbt.CreatePSBTForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PSBT: %w", err)
+	}
+
+	// // 创建v2版本psbt
+	// result, err := psbt.CreatePSBTv2ForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
 	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create PSBT: %w", err)
+	// 	return nil, fmt.Errorf("failed to create PSBT v2: %w", err)
 	// }
 
-	// 创建v2版本psbt
-	result, err := psbt.CreatePSBTv2ForOKX(inputParams, psbtUTXOs, types.CurrentNetworkParams)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PSBT v2: %w", err)
-	}
+	// 打印调试信息
+	fmt.Printf("PSBT Build Result: %+v\n", result)
 
 	return result, nil
 }

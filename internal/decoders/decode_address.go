@@ -81,7 +81,7 @@ func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 		}
 	}
 
-	printDecodeAddress(addr, info)
+	// printDecodeAddress(addr, info)
 	return info, nil
 }
 
