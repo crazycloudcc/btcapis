@@ -12,6 +12,7 @@ func (c *Client) GetAddressBalanceSats(ctx context.Context, addr string) (confir
 	return c.addressClient.GetAddressBalance(ctx, addr)
 }
 
+// GetAddressBalanceBTC 返回地址的确认余额和未确认余额, 单位BTC.
 func (c *Client) GetAddressBalanceBTC(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	confirmedSats, mempoolSats, err := c.GetAddressBalanceSats(ctx, addr)
 	if err != nil {
@@ -30,6 +31,7 @@ func (c *Client) GetAddressScriptInfo(ctx context.Context, addr string) (*types.
 	return c.addressClient.GetAddressScriptInfo(ctx, addr)
 }
 
+// GetAddressInfo 返回地址的详细信息.
 func (c *Client) GetAddressInfo(ctx context.Context, pkScript []byte) (*types.AddressInfo, error) {
 	return c.addressClient.GetAddressInfo(ctx, pkScript)
 }
