@@ -9,7 +9,7 @@ import (
 
 // mempool.space的接口集合
 // 作为bitcoindrpcetc的补充
-type MempoolAdapterClient interface {
+type AdapterMempoolSpaceClient interface {
 	/////////////////////////////////////////////////////////////////////////////////////////////////
 	// 地址相关接口 client_address.go
 
