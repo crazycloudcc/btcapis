@@ -12,10 +12,10 @@ type TestClient struct {
 	mempoolapisClient *mempoolapis.Client
 }
 
-func (c *TestClient) GetNetworkInfo(ctx context.Context) (bitcoindrpc.NetworkInfoDTO, error) {
+func (c *TestClient) GetNetworkInfo(ctx context.Context) (*bitcoindrpc.NetworkInfoDTO, error) {
 	res, err := c.bitcoindrpcClient.GetNetworkInfo(ctx)
 	if err != nil {
-		return bitcoindrpc.NetworkInfoDTO{}, err
+		return nil, err
 	}
 
 	return res, nil

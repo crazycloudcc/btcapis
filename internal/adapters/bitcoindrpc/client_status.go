@@ -97,39 +97,40 @@ type ChainTipDTO struct {
 }
 
 // 获取节点网络信息
-func (c *Client) GetNetworkInfo(ctx context.Context) (NetworkInfoDTO, error) {
+func (c *Client) GetNetworkInfo(ctx context.Context) (*NetworkInfoDTO, error) {
 	var res NetworkInfoDTO
 	if err := c.rpcCall(ctx, "getnetworkinfo", []any{}, &res); err != nil {
-		return NetworkInfoDTO{}, fmt.Errorf("getnetworkinfo: %w", err)
+		return nil, fmt.Errorf("getnetworkinfo: %w", err)
 	}
 
-	return res, nil
+	return &res, nil
 }
 
 // 获取链信息
-func (c *Client) GetChainInfo(ctx context.Context) (ChainInfoDTO, error) {
-	var res ChainInfoDTO
+func (c *Client) GetChainInfo(ctx context.Context) (*ChainInfoDTO, error) {
+	var res *ChainInfoDTO
 	if err := c.rpcCall(ctx, "getchaininfo", []any{}, &res); err != nil {
-		return ChainInfoDTO{}, fmt.Errorf("getchaininfo: %w", err)
+		return nil, fmt.Errorf("getchaininfo: %w", err)
 	}
 
 	return res, nil
 }
 
 // 获取区块统计信息
-func (c *Client) GetBlockStats(ctx context.Context, height int64) (BlockStatsDTO, error) {
-	var res BlockStatsDTO
+func (c *Client) GetBlockStats(ctx context.Context, height int64) (*BlockStatsDTO, error) {
+	var res *BlockStatsDTO
 	if err := c.rpcCall(ctx, "getblockstats", []any{height}, &res); err != nil {
-		return BlockStatsDTO{}, fmt.Errorf("getblockstats: %w", err)
+		return nil, fmt.Errorf("getblockstats: %w", err)
 	}
 
 	return res, nil
 }
 
-func (c *Client) GetChainTip(ctx context.Context) (ChainTipDTO, error) {
-	var res ChainTipDTO
+// 获取链顶信息
+func (c *Client) GetChainTip(ctx context.Context) (*ChainTipDTO, error) {
+	var res *ChainTipDTO
 	if err := c.rpcCall(ctx, "getchaintip", []any{}, &res); err != nil {
-		return ChainTipDTO{}, fmt.Errorf("getchaintip: %w", err)
+		return nil, fmt.Errorf("getchaintip: %w", err)
 	}
 
 	return res, nil

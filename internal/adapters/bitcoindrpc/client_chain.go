@@ -9,11 +9,11 @@ import (
 
 // 估算交易费率
 func (c *Client) ChainEstimateSmartFeeRate(ctx context.Context, targetBlocks int) (*FeeRateSmartDTO, error) {
-	var resp FeeRateSmartDTO
+	var resp *FeeRateSmartDTO
 	if err := c.rpcCall(ctx, "estimatesmartfee", []any{targetBlocks}, &resp); err != nil {
 		return nil, err
 	}
-	return &resp, nil
+	return resp, nil
 }
 
 // 查询 UTXO
@@ -69,20 +69,20 @@ func (c *Client) ChainGetBlockHash(ctx context.Context, height int64) (string, e
 
 // 使用区块block hash 查询区块头
 func (c *Client) ChainGetBlockHeader(ctx context.Context, hash string) (*BlockHeaderDTO, error) {
-	var dto BlockHeaderDTO
+	var dto *BlockHeaderDTO
 	var verbose bool = true // false-返回hex字符串; true-返回json;
 	if err := c.rpcCall(ctx, "getblockheader", []any{hash, verbose}, &dto); err != nil {
 		return nil, err
 	}
-	return &dto, nil
+	return dto, nil
 }
 
 // 使用区块block hash 查询区块
 func (c *Client) ChainGetBlock(ctx context.Context, hash string) (*BlockDTO, error) {
-	var dto BlockDTO
+	var dto *BlockDTO
 	var verbosity int = 1 // 0-返回hex字符串; 1-返回json(其中tx数组返回txid字符串); 2-返回json(其中tx数组返回完整tx数据); 3-返回json(其中tx数组返回完整tx数据);
 	if err := c.rpcCall(ctx, "getblock", []any{hash, verbosity}, &dto); err != nil {
 		return nil, err
 	}
-	return &dto, nil
+	return dto, nil
 }

@@ -19,7 +19,7 @@ func (c *Client) TxGetRaw(ctx context.Context, txid string, decodeFlag bool) ([]
 }
 
 // 构建交易(taproot需要使用psbt)
-func (c *Client) TxCreateRaw(ctx context.Context, dto TxCreateRawDTO) ([]byte, error) {
+func (c *Client) TxCreateRaw(ctx context.Context, dto *TxCreateRawDTO) ([]byte, error) {
 	var rawtx string
 	if err := c.rpcCallWithAny(ctx, "createrawtransaction", dto, &rawtx); err != nil {
 		return nil, err
@@ -28,10 +28,10 @@ func (c *Client) TxCreateRaw(ctx context.Context, dto TxCreateRawDTO) ([]byte, e
 }
 
 // 填充交易费用(taproot需要使用psbt)
-func (c *Client) TxFundRaw(ctx context.Context, rawtx string, options TxFundOptionsDTO) (TxFundRawResultDTO, error) {
-	var result TxFundRawResultDTO
+func (c *Client) TxFundRaw(ctx context.Context, rawtx string, options *TxFundOptionsDTO) (*TxFundRawResultDTO, error) {
+	var result *TxFundRawResultDTO
 	if err := c.rpcCall(ctx, "fundrawtransaction", []any{rawtx, options}, &result); err != nil {
-		return TxFundRawResultDTO{}, err
+		return nil, err
 	}
 	return result, nil
 }
