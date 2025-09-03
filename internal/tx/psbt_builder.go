@@ -119,15 +119,6 @@ func (c *Client) buildPSBT(ctx context.Context, inputParams *types.TxInputParams
 	return result, nil
 }
 
-// func getRedeemScript(pk string) ([]byte, error) {
-// 	pubkeyBytes, _ := hex.DecodeString(pk)       // 来自 OKX
-// 	pkh := btcutil.Hash160(pubkeyBytes)          // RIPEMD160(SHA256(pubkey))
-// 	redeem := append([]byte{0x00, 0x14}, pkh...) // 0x0014 || pkh
-// 	redeemScriptHex := hex.EncodeToString(redeem)
-// 	fmt.Printf("redeemScriptHex: %s\n", redeemScriptHex)
-// 	return redeem, nil
-// }
-
 // 选币算法：先尝试 BnB 精确匹配，失败再 knapsack
 func selectCoins(utxos []types.TxUTXO, targetAmount int64, feeRate float64) ([]types.TxUTXO, int64) {
 	// 按价值排序（降序）

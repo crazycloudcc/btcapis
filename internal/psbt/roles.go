@@ -9,6 +9,8 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/types"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -283,12 +285,12 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 	}
 
 	// 识别脚本类型
-	scriptType := p.classifyScriptForSigning(pkScript)
+	scriptType := decoders.PKScriptToType(pkScript)
 
 	var digest []byte
 
 	switch scriptType {
-	case "p2wpkh":
+	case types.AddrP2WPKH:
 		// 公钥长度与哈希匹配校验
 		if len(pubkey) != 33 {
 			return fmt.Errorf("psbt: p2wpkh requires 33-byte compressed pubkey, got %d", len(pubkey))
@@ -303,7 +305,7 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		scriptCode, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
 			AddData(pkScript[2:]).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()
 		digest, err = txscript.CalcWitnessSigHash(scriptCode, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
-	case "p2wsh":
+	case types.AddrP2WSH:
 		if len(in.WitnessScript) == 0 {
 			return errors.New("psbt: missing witnessScript for p2wsh")
 		}
@@ -320,7 +322,7 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 			return errors.New("psbt: p2wsh expects 33-byte compressed pubkey, not x-only")
 		}
 		digest, err = txscript.CalcWitnessSigHash(in.WitnessScript, txscript.NewTxSigHashes(msgTx, txscript.NewCannedPrevOutputFetcher(pkScript, value)), sighash, msgTx, i, value)
-	case "p2tr":
+	case types.AddrP2TR:
 		// Taproot key-path 仅接受 32B x-only 公钥
 		if len(pubkey) != 32 {
 			return fmt.Errorf("psbt: p2tr requires 32-byte x-only pubkey, got %d", len(pubkey))
@@ -333,7 +335,7 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(pkScript, value)
 		hashes := txscript.NewTxSigHashes(msgTx, prevOutFetcher)
 		digest, err = txscript.CalcTaprootSignatureHash(hashes, sighash, msgTx, i, prevOutFetcher)
-	case "p2pkh":
+	case types.AddrP2PKH:
 		// 公钥长度与哈希匹配校验
 		if len(pubkey) != 33 {
 			return fmt.Errorf("psbt: p2pkh requires 33-byte compressed pubkey, got %d", len(pubkey))
@@ -346,7 +348,7 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		}
 		// Legacy P2PKH: 使用非见证签名
 		digest, err = txscript.CalcSignatureHash(pkScript, sighash, msgTx, i)
-	case "p2sh":
+	case types.AddrP2SH:
 		// P2SH: 先校验 redeemScript 存在且与 pkScript 的 HASH160 匹配
 		if len(in.RedeemScript) == 0 {
 			return errors.New("psbt: missing redeemScript for p2sh signing")
@@ -357,11 +359,11 @@ func (p *Packet) SignInput(i int, pubkey []byte, sighash txscript.SigHashType, p
 		if !bytes.Equal(hash160Bytes(in.RedeemScript), pkScript[2:22]) {
 			return errors.New("psbt: redeemScript hash mismatch for p2sh")
 		}
-		redeemType := p.classifyScriptForSigning(in.RedeemScript)
+		redeemType := decoders.PKScriptToType(in.RedeemScript)
 		switch redeemType {
-		case "p2wpkh", "p2wsh":
+		case types.AddrP2WPKH, types.AddrP2WSH:
 			// P2SH包裹的SegWit: 使用见证签名
-			if redeemType == "p2wpkh" {
+			if redeemType == types.AddrP2WPKH {
 				// 要求 pubkey=33 且内层20B 与 HASH160(pubkey) 匹配
 				if len(pubkey) != 33 {
 					return fmt.Errorf("psbt: p2sh-p2wpkh requires 33-byte compressed pubkey, got %d", len(pubkey))
@@ -440,34 +442,4 @@ func (p *Packet) buildMsgTxSkeleton() (*wire.MsgTx, error) {
 		m.TxOut[i] = &wire.TxOut{Value: out.Value, PkScript: append([]byte(nil), out.ScriptPubKey...)}
 	}
 	return m, nil
-}
-
-// classifyScriptForSigning 识别脚本类型（用于签名）
-func (p *Packet) classifyScriptForSigning(pkScript []byte) string {
-	n := len(pkScript)
-	if n == 0 {
-		return "unknown"
-	}
-
-	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
-	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
-		return "p2pkh"
-	}
-	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
-	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
-		return "p2sh"
-	}
-	// P2WPKH v0: OP_0 PUSH20 <20>
-	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
-		return "p2wpkh"
-	}
-	// P2WSH v0: OP_0 PUSH32 <32>
-	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
-		return "p2wsh"
-	}
-	// P2TR v1: OP_1 PUSH32 <32>
-	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
-		return "p2tr"
-	}
-	return "unknown"
 }
