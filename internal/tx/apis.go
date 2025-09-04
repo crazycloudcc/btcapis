@@ -8,13 +8,16 @@ import (
 	"strings"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
-	"github.com/crazycloudcc/btcapis/internal/psbt"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
 // 转账交易-PSBT预览: 通过输入数据根据发起转账钱包地址的类型创建对应的PSBT交易数据, 这个数据将提交给外部okx插件钱包等进行签名.
-func (c *Client) SendBTCByPSBTPreview(ctx context.Context, inputParams *types.TxInputParams) (*psbt.BuildResult, error) {
-	return c.buildPSBT(ctx, inputParams)
+func (c *Client) CreatePSBT(ctx context.Context, inputParams *types.TxInputParams) (string, error) {
+	ret, err := c.buildPSBT(ctx, inputParams)
+	if err != nil {
+		return "", err
+	}
+	return ret.PSBTBase64, nil
 }
 
 // 接收OKX签名后的交易数据并广播
@@ -22,6 +25,7 @@ func (c *Client) SendBTCByPSBT(ctx context.Context, psbt string) (string, error)
 	// 兼容 OKX psbtHex 与 base64 两种输入
 	normalized := strings.TrimSpace(psbt)
 	var psbtBase64 string
+
 	// 判定十六进制
 	isHex := func(s string) bool {
 		if len(s)%2 != 0 || len(s) == 0 {
