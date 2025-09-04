@@ -45,65 +45,22 @@ func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, 
 // 创建PSBT预览交易数据(钱包未签名状态)
 func (c *Client) CreatePSBT(ctx context.Context, inputParams *types.TxInputParams) (string, error) {
 	fmt.Printf("create psbt: %+v\n", inputParams)
-	// return c.txClient.CreatePSBT(ctx, inputParams)
 	return c.txClient.CreateTxUsePSBTv0(ctx, inputParams)
 }
 
-// 上传经过钱包签名的PSBT数据, 用于后续广播交易;
-func (c *Client) SendBTCByPSBT(ctx context.Context, psbt string) (string, error) {
-	fmt.Printf("send psbt: %s\n", psbt)
-	return c.txClient.SendBTCByPSBT(ctx, psbt)
+// 上传经过钱包签名的PSBT数据并进行广播;
+func (c *Client) FinalizePSBTAndBroadcast(ctx context.Context, psbt string) (string, error) {
+	fmt.Printf("FinalizePSBTAndBroadcast: %s\n", psbt)
+	rawTx, err := c.txClient.FinalizePSBT(ctx, psbt)
+	if err != nil {
+		return "", err
+	}
+
+	// 广播交易
+	return c.BroadcastRawTx(ctx, rawTx)
 }
 
-// // 构建交易 (调试已经完成)
-// func (c *Client) BuildTx(ctx context.Context) ([]byte, error) {
-
-// 	inputs := []bitcoindrpc.TxInputCreateRawDTO{
-// 		bitcoindrpc.NewTxInput("0d31e59675c85f17d942f4510bb4760d9ed4b661df22af3b7cd5ef3c2116626b", 0),
-// 	}
-// 	outputs := []bitcoindrpc.TxOutputCreateRawDTO{
-// 		bitcoindrpc.NewPayToAddress("tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw", 0.001),
-// 		bitcoindrpc.NewOpReturn("0100000000000000000000000000000000000000000000000000000000000000"),
-// 	}
-
-// 	// locktime := int64(0)
-// 	// replaceable := false
-
-// 	dto := bitcoindrpc.TxCreateRawDTO{
-// 		Inputs:  inputs,
-// 		Outputs: outputs,
-// 		// Locktime:    &locktime,
-// 		// Replaceable: &replaceable,
-// 	}
-
-// 	raw, err := dto.MarshalJSON()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	fmt.Printf("dto: %+v\n", string(raw))
-// 	fmt.Println("--------------------------------")
-
-// 	return c.txClient.BuildTx(ctx, dto)
-// }
-
-// // 填充交易费用 (调试已经完成)
-// func (c *Client) FundTx(ctx context.Context, rawtx string) (bitcoindrpc.TxFundRawResultDTO, error) {
-
-// 	options := bitcoindrpc.TxFundOptionsDTO{
-// 		AddInputs:     true,
-// 		FeeRateSats:   10,
-// 		Replaceable:   true,
-// 		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
-// 		// ChangeType: "bech32",
-// 	}
-// 	fmt.Printf("options: %+v\n", options)
-// 	fmt.Println("--------------------------------")
-
-// 	return c.txClient.FundTx(ctx, rawtx, options)
-// }
-
-// // 签名交易
-// func (c *Client) SignTxWithKey(ctx context.Context, rawtx string) (string, error) {
-// 	return c.txClient.TxSignRawWithKey(ctx, rawtx)
-// }
+// 广播签名
+func (c *Client) BroadcastRawTx(ctx context.Context, rawtx []byte) (string, error) {
+	return c.txClient.BroadcastRawTx(ctx, rawtx)
+}

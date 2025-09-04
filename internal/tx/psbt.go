@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
@@ -15,7 +16,7 @@ import (
 
 // 将交易 MsgTx 转为 PSBTv0 格式;
 // 因为btcd还不支持v2, 暂时使用v0;
-func (c *Client) MsgTxToPsbtV0(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {
+func (c *Client) MsgTxToPSBTV0(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {
 	packet, err := psbt.NewFromUnsignedTx(tx)
 	if err != nil {
 		return nil, fmt.Errorf("创建 PSBT 失败: %v", err)
@@ -107,6 +108,57 @@ func (c *Client) MsgTxToPsbtV0(ctx context.Context, tx *wire.MsgTx, inputParams 
 		PSBTBase64: psbtBase64,
 		UnsignedTx: hex.EncodeToString(raw.Bytes()),
 	}, nil
+}
+
+// 接收OKX签名后的交易数据并解析
+func (c *Client) FinalizePSBT(ctx context.Context, signedPSBT string) ([]byte, error) {
+	// 兼容 OKX psbtHex 与 base64 两种输入
+	normalized := strings.TrimSpace(signedPSBT)
+	var psbtBase64 string
+
+	// 判定十六进制
+	isHex := func(s string) bool {
+		if len(s)%2 != 0 || len(s) == 0 {
+			return false
+		}
+		for i := 0; i < len(s); i++ {
+			ch := s[i]
+			if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+				return false
+			}
+		}
+		return true
+	}
+	fmt.Printf("psbt input len: %d, isHex: %v\n", len(normalized), isHex(normalized))
+
+	// 十六进制转base64
+	if isHex(normalized) {
+		bin, err := hex.DecodeString(normalized)
+		if err != nil {
+			return nil, err
+		}
+		psbtBase64 = base64.StdEncoding.EncodeToString(bin)
+	} else {
+		psbtBase64 = normalized
+	}
+	fmt.Printf("psbt base64 len: %d\n", len(psbtBase64))
+	fmt.Printf("psbt base64: %s\n", psbtBase64)
+
+	// finalizepsbt -> 原始交易hex
+	finalizeData, err := c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
+	if err != nil || !finalizeData.Complete {
+		fmt.Printf("finalizepsbt error: %v, complete: %v\n", err, finalizeData.Complete)
+		return nil, err
+	}
+	fmt.Println("finalize rawHex: ", finalizeData.Hex)
+
+	rawTx, err := hex.DecodeString(finalizeData.Hex)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("broadcast tx len: ", len(rawTx))
+	return rawTx, nil
 }
 
 // helper: 判定“SegWit 程序”本体（用于 P2SH redeemScript：P2WPKH/P2WSH/Taproot）
