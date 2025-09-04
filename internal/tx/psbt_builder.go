@@ -14,6 +14,13 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+// 将交易 MsgTx 转为 PSBTv2 格式;
+func (c *Client) MsgTxToPSBTV2(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {
+	w := bytes.NewBuffer()
+rawTx:
+	tx.Serialize()
+}
+
 // 将交易 MsgTx 转为 PSBTv0 格式;
 // 因为btcd还不支持v2, 暂时使用v0;
 func (c *Client) MsgTxToPSBTV0(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {

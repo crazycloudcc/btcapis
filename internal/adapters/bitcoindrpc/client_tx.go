@@ -45,6 +45,15 @@ func (c *Client) TxSignRawWithKey(ctx context.Context, rawtx string) (string, er
 	return signedTx, nil
 }
 
+// 将原始交易转为psbt的v2格式
+func (c *Client) TxConvertToPsbtV2(ctx context.Context, rawtx string, perm bool) (string, error) {
+	var psbt string
+	if err := c.rpcCall(ctx, "converttopsbt", []any{rawtx, perm}, &psbt); err != nil {
+		return "", err
+	}
+	return psbt, nil
+}
+
 // 完成psbt交易
 func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (*SignedTxDTO, error) {
 	var signedTx *SignedTxDTO
