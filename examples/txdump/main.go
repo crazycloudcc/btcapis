@@ -134,16 +134,16 @@ func testrpc(client *btcapis.Client, testClient *btcapis.TestClient) {
 		ChangeAddress: "tb1pu32s67eye07d05llxr8klr4lj3em3fd6glse5nujmym835x7aw3shp2ffw",
 	}
 
-	psbt, err := client.CreatePSBT(context.Background(), txInputParams)
+	psbtBase64, err := client.CreatePSBT(context.Background(), txInputParams)
 	if err != nil {
 		log.Fatalf("CreatePSBT: %v", err)
 	}
-	fmt.Printf("psbt base64: %s\n", psbt.PSBTBase64)
-	fmt.Printf("unsigned tx hex: %s\n", psbt.UnsignedTxHex)
-	fmt.Printf("estimated vsize: %d vB\n", psbt.EstimatedVSize)
-	fmt.Printf("fee sat: %d sats\n", psbt.FeeSat)
-	fmt.Printf("change output index: %d\n", psbt.ChangeOutputIdx)
-	fmt.Printf("psbt struct: %+v\n", psbt.Packet)
+	fmt.Printf("psbt base64: %s\n", psbtBase64)
+	// fmt.Printf("unsigned tx hex: %s\n", psbt.UnsignedTxHex)
+	// fmt.Printf("estimated vsize: %d vB\n", psbt.EstimatedVSize)
+	// fmt.Printf("fee sat: %d sats\n", psbt.FeeSat)
+	// fmt.Printf("change output index: %d\n", psbt.ChangeOutputIdx)
+	// fmt.Printf("psbt struct: %+v\n", psbt.Packet)
 	fmt.Println("--------------------------------")
 
 	// 	// 输出给调用方/前端（包含 OKX 可用的 PSBT base64）

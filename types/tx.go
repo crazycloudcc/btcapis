@@ -75,3 +75,8 @@ type TxInputParams struct {
 	PublicKey     string    `json:"public_key"`     // 公钥 => 从OKX获取, 后续要删除, 改用其他方式录入钱包
 	ChangeAddress string    `json:"change_address"` // 找零地址
 }
+
+type TxUnsignedPSBT struct {
+	PSBTBase64 string `json:"psbt_base64"`     // 导出签名用的PSBT数据
+	UnsignedTx string `json:"unsigned_tx_hex"` // 调试/核对
+}

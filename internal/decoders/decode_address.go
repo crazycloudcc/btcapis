@@ -17,6 +17,29 @@ func AddressToPkScript(addr string) ([]byte, error) {
 	return txscript.PayToAddrScript(decodeAddr)
 }
 
+// 通过btcd库, 解析钱包地址, 获取钱包地址对应类型.
+func AddressToType(addr string) (types.AddressType, error) {
+	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)
+	if err != nil {
+		return types.AddrUnknown, fmt.Errorf("decode address: %w", err)
+	}
+
+	switch decodeAddr.(type) {
+	case *btcutil.AddressPubKeyHash:
+		return types.AddrP2PKH, nil
+	case *btcutil.AddressScriptHash:
+		return types.AddrP2SH, nil
+	case *btcutil.AddressWitnessPubKeyHash:
+		return types.AddrP2WPKH, nil
+	case *btcutil.AddressWitnessScriptHash:
+		return types.AddrP2WSH, nil
+	case *btcutil.AddressTaproot:
+		return types.AddrP2TR, nil
+	default:
+		return types.AddrUnknown, nil
+	}
+}
+
 // 通过btcd库, 解析钱包地址, 获取钱包地址对应的类型, 锁定脚本, 脚本哈希等信息.
 func DecodeAddress(addr string) (*types.AddressScriptInfo, error) {
 	decodeAddr, err := btcutil.DecodeAddress(addr, types.CurrentNetworkParams)

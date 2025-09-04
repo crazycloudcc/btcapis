@@ -11,6 +11,21 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+// 转账交易-使用PSBTv0版本
+func (c *Client) CreateTxUsePSBTv0(ctx context.Context, inputParams *types.TxInputParams) (string, error) {
+	tx, utxos, err := c.createNormalTx(ctx, inputParams)
+	if err != nil {
+		return "", err
+	}
+
+	unsignedPsbt, err := c.MsgTxToPsbtV0(ctx, tx, inputParams, utxos)
+	if err != nil {
+		return "", err
+	}
+
+	return unsignedPsbt.PSBTBase64, nil
+}
+
 // 转账交易-PSBT预览: 通过输入数据根据发起转账钱包地址的类型创建对应的PSBT交易数据, 这个数据将提交给外部okx插件钱包等进行签名.
 func (c *Client) CreatePSBT(ctx context.Context, inputParams *types.TxInputParams) (string, error) {
 	ret, err := c.buildPSBT(ctx, inputParams)
