@@ -135,3 +135,12 @@ func (c *Client) GetChainTips(ctx context.Context) ([]ChainTipDTO, error) {
 
 	return res, nil
 }
+
+// GetBlockCount
+func (c *Client) GetBlockCount(ctx context.Context) (int64, error) {
+	var res int64
+	if err := c.rpcCall(ctx, "getblockcount", []any{}, &res); err != nil {
+		return 0, fmt.Errorf("getblockcount: %w", err)
+	}
+	return res, nil
+}

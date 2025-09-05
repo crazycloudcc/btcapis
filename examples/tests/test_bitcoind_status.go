@@ -48,6 +48,14 @@ func TestBitcoindStatus(testClient *btcapis.TestClient) {
 	fmt.Printf("ChainTips: %s\n", string(chainTipsJson))
 	fmt.Println("--------------------------------")
 
+	// 获取区块高度
+	blockCount, err := testClient.GetBlockCount(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("BlockCount: %d\n", blockCount)
+	fmt.Println("--------------------------------")
+
 	fmt.Println("Test bitcoind status done.")
 	fmt.Println("================================")
 }

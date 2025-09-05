@@ -14,36 +14,25 @@ type TestClient struct {
 
 // 获取节点网络信息
 func (c *TestClient) GetNetworkInfo(ctx context.Context) (*bitcoindrpc.NetworkInfoDTO, error) {
-	res, err := c.bitcoindrpcClient.GetNetworkInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return c.bitcoindrpcClient.GetNetworkInfo(ctx)
 }
 
 // 获取链信息
 func (c *TestClient) GetBlockChainInfo(ctx context.Context) (*bitcoindrpc.ChainInfoDTO, error) {
-	res, err := c.bitcoindrpcClient.GetBlockChainInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return c.bitcoindrpcClient.GetBlockChainInfo(ctx)
 }
 
 // 获取区块统计信息
 func (c *TestClient) GetBlockStats(ctx context.Context, height int64) (*bitcoindrpc.BlockStatsDTO, error) {
-	res, err := c.bitcoindrpcClient.GetBlockStats(ctx, height)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return c.bitcoindrpcClient.GetBlockStats(ctx, height)
 }
 
 // 获取链顶信息
 func (c *TestClient) GetChainTips(ctx context.Context) ([]bitcoindrpc.ChainTipDTO, error) {
-	res, err := c.bitcoindrpcClient.GetChainTips(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return c.bitcoindrpcClient.GetChainTips(ctx)
+}
+
+// GetBlockCount
+func (c *TestClient) GetBlockCount(ctx context.Context) (int64, error) {
+	return c.bitcoindrpcClient.GetBlockCount(ctx)
 }
