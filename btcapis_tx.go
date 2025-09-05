@@ -38,7 +38,7 @@ func (c *Client) DecodeRawTx(ctx context.Context, rawtx []byte) (*types.Tx, erro
 
 // 上传钱包+publickey, 用于后续组装PSBT等数据, 后续需要在postgres创建映射;
 func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, publickey string) error {
-	fmt.Printf("import address: %s, publickey: %s\n", address, publickey)
+	fmt.Printf("!!! (unsupport) import address: %s, publickey: %s\n", address, publickey)
 	return nil
 }
 

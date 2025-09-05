@@ -38,19 +38,19 @@ type NetworkInfoDTO struct {
 
 // 链信息数据结构
 type ChainInfoDTO struct {
-	Chain                string   `json:"chain"`                // 链
-	Blocks               int      `json:"blocks"`               // 区块数
-	Headers              int      `json:"headers"`              // 头数
-	Bestblockhash        string   `json:"bestblockhash"`        // 最佳区块哈希
-	Difficulty           float64  `json:"difficulty"`           // 难度
-	Time                 int      `json:"time"`                 // 时间
-	MedianTime           int      `json:"mediantime"`           // 中位时间
-	Verificationprogress float64  `json:"verificationprogress"` // 验证进度
-	Initialblockdownload bool     `json:"initialblockdownload"` // 初始区块下载
-	Chainwork            string   `json:"chainwork"`            // 链工作量
-	Sizeondisk           int      `json:"size_on_disk"`         // 磁盘大小
-	Pruned               bool     `json:"pruned"`               // 是否修剪
-	Warnings             []string `json:"warnings"`             // 警告列表
+	Chain                string  `json:"chain"`                // 链
+	Blocks               int     `json:"blocks"`               // 区块数
+	Headers              int     `json:"headers"`              // 头数
+	Bestblockhash        string  `json:"bestblockhash"`        // 最佳区块哈希
+	Difficulty           float64 `json:"difficulty"`           // 难度
+	Time                 int     `json:"time"`                 // 时间
+	MedianTime           int     `json:"mediantime"`           // 中位时间
+	Verificationprogress float64 `json:"verificationprogress"` // 验证进度
+	Initialblockdownload bool    `json:"initialblockdownload"` // 初始区块下载
+	Chainwork            string  `json:"chainwork"`            // 链工作量
+	Sizeondisk           int     `json:"size_on_disk"`         // 磁盘大小
+	Pruned               bool    `json:"pruned"`               // 是否修剪
+	Warnings             string  `json:"warnings"`             // 警告列表
 }
 
 // 区块统计信息数据结构
@@ -90,10 +90,10 @@ type BlockStatsDTO struct {
 
 // 链顶信息数据结构
 type ChainTipDTO struct {
-	Height int64  `json:"height"` // 高度
-	Hash   string `json:"hash"`   // 哈希
-	Branch string `json:"branch"` // 分支
-	Status string `json:"status"` // 状态
+	Height    int64  `json:"height"`    // 高度
+	Hash      string `json:"hash"`      // 哈希
+	BranchLen int    `json:"branchlen"` // 分支
+	Status    string `json:"status"`    // 状态
 }
 
 // 获取节点网络信息
@@ -107,10 +107,10 @@ func (c *Client) GetNetworkInfo(ctx context.Context) (*NetworkInfoDTO, error) {
 }
 
 // 获取链信息
-func (c *Client) GetChainInfo(ctx context.Context) (*ChainInfoDTO, error) {
+func (c *Client) GetBlockChainInfo(ctx context.Context) (*ChainInfoDTO, error) {
 	var res *ChainInfoDTO
-	if err := c.rpcCall(ctx, "getchaininfo", []any{}, &res); err != nil {
-		return nil, fmt.Errorf("getchaininfo: %w", err)
+	if err := c.rpcCall(ctx, "getblockchaininfo", []any{}, &res); err != nil {
+		return nil, fmt.Errorf("getblockchaininfo: %w", err)
 	}
 
 	return res, nil
@@ -127,10 +127,10 @@ func (c *Client) GetBlockStats(ctx context.Context, height int64) (*BlockStatsDT
 }
 
 // 获取链顶信息
-func (c *Client) GetChainTip(ctx context.Context) (*ChainTipDTO, error) {
-	var res *ChainTipDTO
-	if err := c.rpcCall(ctx, "getchaintip", []any{}, &res); err != nil {
-		return nil, fmt.Errorf("getchaintip: %w", err)
+func (c *Client) GetChainTips(ctx context.Context) ([]ChainTipDTO, error) {
+	var res []ChainTipDTO
+	if err := c.rpcCall(ctx, "getchaintips", []any{}, &res); err != nil {
+		return nil, fmt.Errorf("getchaintips: %w", err)
 	}
 
 	return res, nil
