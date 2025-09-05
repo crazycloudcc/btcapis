@@ -50,7 +50,10 @@ func TestScripts(client *btcapis.Client) {
 	fmt.Println("--------------------------------")
 
 	// 通过脚本获取类型
-	scriptType := client.DecodePKScriptToType(pkScript)
+	scriptType, err := client.DecodePKScriptToType(pkScript)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("scriptType: %s\n", scriptType)
 	fmt.Println("--------------------------------")
 

@@ -1,39 +1,40 @@
 package decoders
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-func PKScriptToType(pkScript []byte) types.AddressType {
+func PKScriptToType(pkScript []byte) (types.AddressType, error) {
 	n := len(pkScript)
 	if n == 0 {
-		return types.AddrUnknown
+		return types.AddrUnknown, fmt.Errorf("empty pkScript")
 	}
 
 	// P2PKH: OP_DUP OP_HASH160 PUSH20 <20> OP_EQUALVERIFY OP_CHECKSIG
 	if n == 25 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
-		return types.AddrP2PKH
+		return types.AddrP2PKH, nil
 	}
 	// P2SH: OP_HASH160 PUSH20 <20> OP_EQUAL
 	if n == 23 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
-		return types.AddrP2SH
+		return types.AddrP2SH, nil
 	}
 	// P2WPKH v0: OP_0 PUSH20 <20>
 	if n == 22 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
-		return types.AddrP2WPKH
+		return types.AddrP2WPKH, nil
 	}
 	// P2WSH v0: OP_0 PUSH32 <32>
 	if n == 34 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
-		return types.AddrP2WSH
+		return types.AddrP2WSH, nil
 	}
 	// P2TR v1: OP_1 PUSH32 <32>
 	if n == 34 && pkScript[0] == 0x51 && pkScript[1] == 0x20 {
-		return types.AddrP2TR
+		return types.AddrP2TR, nil
 	}
-	return types.AddrUnknown
+	return types.AddrUnknown, errors.New("unknown pkScript type")
 }
 
 func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
@@ -42,7 +43,11 @@ func DecodePkScript(pkScript []byte) (*types.AddressInfo, error) {
 		return nil, err
 	}
 	fmt.Printf("DecodePkScript cls: %s\n", cls.String())
-	out := &types.AddressInfo{PKScript: pkScript, Typ: PKScriptToType(pkScript), Cls: cls, ReqSigs: reqSigs}
+	typ, err := PKScriptToType(pkScript)
+	if err != nil {
+		return nil, err
+	}
+	out := &types.AddressInfo{PKScript: pkScript, Typ: typ, Cls: cls, ReqSigs: reqSigs}
 	out.Addresses = make([]string, len(addrs))
 	for i, a := range addrs {
 		out.Addresses[i] = a.EncodeAddress()

@@ -26,7 +26,7 @@ func (c *Client) DecodePkScriptToAddressInfo(pkScript []byte) (*types.AddressInf
 }
 
 // 通过脚本获取类型
-func (c *Client) DecodePKScriptToType(pkScript []byte) types.AddressType {
+func (c *Client) DecodePKScriptToType(pkScript []byte) (types.AddressType, error) {
 	return decoders.PKScriptToType(pkScript)
 }
 
