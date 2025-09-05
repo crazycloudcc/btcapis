@@ -52,8 +52,9 @@ func main() {
 	// tests.TestBitcoindStatus(testClient)
 	// tests.TestMempoolSpaceStatus(client)
 
-	tests.TestAddress(client)
+	// tests.TestAddress(client)
 	// tests.TestTxs(client)
+	tests.TestScripts(client)
 	fmt.Println("test all done.")
 	fmt.Println("================================")
 }

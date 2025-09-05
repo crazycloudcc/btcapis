@@ -5,32 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/types"
 )
-
-// GetAddressScriptInfo 通过地址, 获取地址的锁定脚本信息.
-func (c *Client) GetAddressScriptInfo(ctx context.Context, addr string) (*types.AddressScriptInfo, error) {
-	scriptInfo, err := decoders.DecodeAddress(addr)
-	if err != nil {
-		return nil, err
-	}
-	return scriptInfo, nil
-}
-
-// GetAddressInfo 通过锁定脚本, 获取地址信息.
-func (c *Client) GetAddressInfo(ctx context.Context, pkScript []byte) (*types.AddressInfo, error) {
-	scriptInfo, err := decoders.DecodePkScript(pkScript)
-	if err != nil {
-		return nil, err
-	}
-	return &types.AddressInfo{
-		PKScript:  pkScript,
-		Typ:       scriptInfo.Typ,
-		ReqSigs:   scriptInfo.ReqSigs,
-		Addresses: scriptInfo.Addresses,
-	}, nil
-}
 
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed int64, mempool int64, err error) {

@@ -27,15 +27,6 @@ func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	return ret, err
 }
 
-// 解析一笔交易元数据 => 适用于外部直接输入交易元数据解析结构
-func (c *Client) DecodeRawTx(ctx context.Context, rawtx []byte) (*types.Tx, error) {
-	ret, err := decoders.DecodeRawTx(rawtx)
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 // 上传钱包+publickey, 用于后续组装PSBT等数据, 后续需要在postgres创建映射;
 func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, publickey string) error {
 	fmt.Printf("!!! (unsupport) import address: %s, publickey: %s\n", address, publickey)
