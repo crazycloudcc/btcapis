@@ -27,12 +27,6 @@ func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	return ret, err
 }
 
-// 上传钱包+publickey, 用于后续组装PSBT等数据, 后续需要在postgres创建映射;
-func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, publickey string) error {
-	fmt.Printf("!!! (unsupport) import address: %s, publickey: %s\n", address, publickey)
-	return nil
-}
-
 // 创建PSBT预览交易数据(钱包未签名状态)
 func (c *Client) CreatePSBT(ctx context.Context, inputParams *types.TxInputParams) (string, error) {
 	fmt.Printf("create psbt: %+v\n", inputParams)
