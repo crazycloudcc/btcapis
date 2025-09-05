@@ -10,12 +10,15 @@ import (
 )
 
 type Client struct {
-	bitcoindrpcClient *bitcoindrpc.Client // bitcoindrpc接口调用集合.
-	mempoolapisClient *mempoolapis.Client // mempool.space接口调用集合.
-	addressClient     *address.Client     // 钱包地址操作
-	txClient          *tx.Client          // 交易操作
-	chainClient       *chain.Client       // 链操作 - 无法归类到钱包和交易类的其他链上操作
+	// bitcoindrpcClient *bitcoindrpc.Client // bitcoindrpc接口调用集合.
+	// mempoolapisClient *mempoolapis.Client // mempool.space接口调用集合.
+	addressClient *address.Client // 钱包地址操作
+	txClient      *tx.Client      // 交易操作
+	chainClient   *chain.Client   // 链操作 - 无法归类到钱包和交易类的其他链上操作
 }
+
+var bitcoindrpcClient *bitcoindrpc.Client
+var mempoolapisClient *mempoolapis.Client
 
 func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Client {
 	types.SetCurrentNetwork(network)
@@ -23,7 +26,7 @@ func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Clien
 	client := &Client{}
 
 	if rpc_url != "" {
-		client.bitcoindrpcClient = bitcoindrpc.New(rpc_url, rpc_user, rpc_pass, timeout)
+		bitcoindrpcClient = bitcoindrpc.New(rpc_url, rpc_user, rpc_pass, timeout)
 	}
 
 	mempool_rpc_url := ""
@@ -36,19 +39,19 @@ func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Clien
 	}
 
 	if mempool_rpc_url != "" {
-		client.mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
+		mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
 	}
 
-	client.addressClient = address.New(client.bitcoindrpcClient, client.mempoolapisClient)
-	client.txClient = tx.New(client.bitcoindrpcClient, client.mempoolapisClient, client.addressClient)
-	client.chainClient = chain.New(client.bitcoindrpcClient, client.mempoolapisClient)
+	client.addressClient = address.New(bitcoindrpcClient, mempoolapisClient)
+	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, client.addressClient)
+	client.chainClient = chain.New(bitcoindrpcClient, mempoolapisClient)
 
 	return client
 }
 
 func NewTestClient(client *Client) *TestClient {
 	return &TestClient{
-		bitcoindrpcClient: client.bitcoindrpcClient,
-		mempoolapisClient: client.mempoolapisClient,
+		bitcoindrpcClient: bitcoindrpcClient,
+		mempoolapisClient: mempoolapisClient,
 	}
 }

@@ -68,8 +68,8 @@ func (c *Client) ChainGetBlockHash(ctx context.Context, height int64) (string, e
 }
 
 // 使用区块block hash 查询区块头
-func (c *Client) ChainGetBlockHeader(ctx context.Context, hash string) (*BlockHeaderDTO, error) {
-	var dto *BlockHeaderDTO
+func (c *Client) ChainGetBlockHeader(ctx context.Context, hash string) (*BlockDTO, error) {
+	var dto *BlockDTO
 	var verbose bool = true // false-返回hex字符串; true-返回json;
 	if err := c.rpcCall(ctx, "getblockheader", []any{hash, verbose}, &dto); err != nil {
 		return nil, err

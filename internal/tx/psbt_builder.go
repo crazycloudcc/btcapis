@@ -14,12 +14,10 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-// 将交易 MsgTx 转为 PSBTv2 格式;
-func (c *Client) MsgTxToPSBTV2(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {
-	w := bytes.NewBuffer()
-rawTx:
-	tx.Serialize()
-}
+// // 将交易 MsgTx 转为 PSBTv2 格式;
+// func (c *Client) MsgTxToPSBTV2(ctx context.Context, tx *wire.MsgTx, inputParams *types.TxInputParams, utxos []*types.TxUTXO) (*types.TxUnsignedPSBT, error) {
+// 	w := bytes.NewBuffer()
+// }
 
 // 将交易 MsgTx 转为 PSBTv0 格式;
 // 因为btcd还不支持v2, 暂时使用v0;
@@ -185,34 +183,3 @@ func isSegwitProgram(script []byte) bool {
 	// 仅接受 20/32（v0-pkh / v0-wsh / v1-taproot）的典型长度
 	return push == 20 || push == 32
 }
-
-// // 3. 将TxUTXO转为PsbtUTXO结构
-// 	psbtUTXOs := make([]psbt.PsbtUTXO, 0, len(selectedUTXOs))
-// for _, utxo := range selectedUTXOs {
-
-// 	pkScript := utxo.PkScript
-// 	if len(pkScript) == 0 {
-// 		// 如果没有 pkScript，尝试通过地址解析
-// 		pkScript = addrScriptInfo.ScriptPubKeyHex
-// 	}
-
-// 	nonWitnessTxHex := ""
-// 	if decoders.PKScriptToType(utxo.PkScript) == types.AddrP2PKH {
-// 		txRaw, err := c.bitcoindrpcClient.TxGetRaw(ctx, utxo.OutPoint.Hash.String(), false)
-// 		if err != nil {
-// 			fmt.Print("Error fetching raw tx \n")
-// 			return nil, fmt.Errorf("failed to get raw tx for %s: %w", utxo.OutPoint.Hash.String(), err)
-// 		}
-// 		nonWitnessTxHex = hex.EncodeToString(txRaw)
-// 	}
-
-// 	psbtUTXOs = append(psbtUTXOs, psbt.PsbtUTXO{
-// 		TxID:             utxo.OutPoint.Hash.String(),
-// 		Vout:             utxo.OutPoint.Index,
-// 		ValueSat:         utxo.Value,
-// 		ScriptPubKeyHex:  hex.EncodeToString(pkScript),
-// 		NonWitnessTxHex:  nonWitnessTxHex,
-// 		RedeemScriptHex:  hex.EncodeToString(addrScriptInfo.RedeemScriptHashHex),
-// 		WitnessScriptHex: hex.EncodeToString(addrScriptInfo.WitnessProgramHex),
-// 	})
-// }

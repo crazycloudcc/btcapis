@@ -9,6 +9,7 @@ import (
 
 	"github.com/crazycloudcc/btcapis"
 	"github.com/crazycloudcc/btcapis/internal/decoders"
+	"github.com/crazycloudcc/btcapis/internal/utils"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
@@ -80,11 +81,11 @@ func main() {
 	fmt.Printf("typ: %s\n", typ)
 	fmt.Println("--------------------------------")
 
-	confirmed, mempool, err := client.GetAddressBalanceBTC(ctx, addr)
+	confirmed, mempool, err := client.GetAddressBalance(ctx, addr)
 	if err != nil {
 		log.Fatalf("GetAddressBalance: %v", err)
 	}
-	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", confirmed, mempool)
+	fmt.Printf("Balance(BTC): %.8f(%.8f)\n", utils.SatsToBTC(confirmed), utils.SatsToBTC(mempool))
 	fmt.Println("--------------------------------")
 
 	// utxos, err := client.GetAddressUTXOs(ctx, addr)
