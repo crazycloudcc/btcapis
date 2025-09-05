@@ -2,10 +2,19 @@ package decoders
 
 import (
 	"bytes"
+	"encoding/hex"
 
 	"github.com/btcsuite/btcd/wire"
 	"github.com/crazycloudcc/btcapis/types"
 )
+
+func DecodeRawTxString(rawHex string) (*types.Tx, error) {
+	raw, err := hex.DecodeString(rawHex)
+	if err != nil {
+		return nil, err
+	}
+	return DecodeRawTx(raw)
+}
 
 func DecodeRawTx(raw []byte) (*types.Tx, error) {
 	var m wire.MsgTx

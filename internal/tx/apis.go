@@ -58,3 +58,13 @@ func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 
 	return ret, err
 }
+
+// 校验psbt base64串是否合法
+func (c *Client) ValidateUnsignedPsbtBase64(ctx context.Context, psbtBase64 string) error {
+	return c.bitcoindrpcClient.TxValidateUnsignedPsbt(ctx, psbtBase64)
+}
+
+// 校验已签名psbt的base64串
+func (c *Client) ValidateSignedPsbtBase64(ctx context.Context, psbtBase64 string) (string, error) {
+	return c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
+}

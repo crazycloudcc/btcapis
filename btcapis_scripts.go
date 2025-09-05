@@ -39,3 +39,8 @@ func (c *Client) DecodePkScriptToAsmString(pkScript []byte) (ops []types.ScriptO
 func (c *Client) DecodeRawTx(rawtx []byte) (*types.Tx, error) {
 	return decoders.DecodeRawTx(rawtx)
 }
+
+// 解析一笔交易元数据 => 适用于外部直接输入交易元数据解析结构(十六进制字符串)
+func (c *Client) DecodeRawTxString(rawHex string) (*types.Tx, error) {
+	return decoders.DecodeRawTxString(rawHex)
+}

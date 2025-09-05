@@ -150,14 +150,14 @@ func (c *Client) FinalizePSBT(ctx context.Context, signedPSBT string) ([]byte, e
 	fmt.Printf("psbt base64: %s\n", psbtBase64)
 
 	// finalizepsbt -> 原始交易hex
-	finalizeData, err := c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
-	if err != nil || !finalizeData.Complete {
-		fmt.Printf("finalizepsbt error: %v, complete: %v\n", err, finalizeData.Complete)
+	hexString, err := c.bitcoindrpcClient.TxFinalizePsbt(ctx, psbtBase64)
+	if err != nil {
+		fmt.Printf("finalizepsbt error: %v\n", err)
 		return nil, err
 	}
-	fmt.Println("finalize rawHex: ", finalizeData.Hex)
+	fmt.Println("finalize rawHex: ", hexString)
 
-	rawTx, err := hex.DecodeString(finalizeData.Hex)
+	rawTx, err := hex.DecodeString(hexString)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ package bitcoindrpc
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 )
 
 // 获取交易元数据
@@ -45,22 +46,27 @@ func (c *Client) TxSignRawWithKey(ctx context.Context, rawtx string) (string, er
 	return signedTx, nil
 }
 
-// 将原始交易转为psbt的v2格式
-func (c *Client) TxConvertToPsbtV2(ctx context.Context, rawtx string, perm bool) (string, error) {
-	var psbt string
-	if err := c.rpcCall(ctx, "converttopsbt", []any{rawtx, perm}, &psbt); err != nil {
-		return "", err
+// 检查psbt合法性
+func (c *Client) TxValidateUnsignedPsbt(ctx context.Context, psbt string) error {
+	var result any
+	if err := c.rpcCall(ctx, "decodepsbt", []any{psbt}, &result); err != nil {
+		return err
 	}
-	return psbt, nil
+	return nil
 }
 
 // 完成psbt交易
-func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (*SignedTxDTO, error) {
+func (c *Client) TxFinalizePsbt(ctx context.Context, psbt string) (string, error) {
 	var signedTx *SignedTxDTO
 	if err := c.rpcCall(ctx, "finalizepsbt", []any{psbt}, &signedTx); err != nil {
-		return nil, err
+		return "", err
 	}
-	return signedTx, nil
+
+	if !signedTx.Complete {
+		return "", errors.New("psbt is not completely signed")
+	}
+
+	return signedTx.Hex, nil
 }
 
 // 广播交易

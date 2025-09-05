@@ -49,3 +49,13 @@ func (c *Client) FinalizePSBTAndBroadcast(ctx context.Context, psbt string) (str
 func (c *Client) BroadcastRawTx(ctx context.Context, rawtx []byte) (string, error) {
 	return c.txClient.BroadcastRawTx(ctx, rawtx)
 }
+
+// 校验psbt base64串是否合法
+func (c *Client) ValidateUnsignedPsbtBase64(ctx context.Context, psbtBase64 string) error {
+	return c.txClient.ValidateUnsignedPsbtBase64(ctx, psbtBase64)
+}
+
+// 校验已签名psbt的base64串
+func (c *Client) ValidateSignedPsbtBase64(ctx context.Context, psbtBase64 string) (string, error) {
+	return c.txClient.ValidateSignedPsbtBase64(ctx, psbtBase64)
+}
