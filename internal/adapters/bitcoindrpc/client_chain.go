@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-// 估算交易费率
+// 估算交易费率 Confirmation target in blocks (1 - 1008)
 func (c *Client) ChainEstimateSmartFeeRate(ctx context.Context, targetBlocks int) (*FeeRateSmartDTO, error) {
 	var resp *FeeRateSmartDTO
 	if err := c.rpcCall(ctx, "estimatesmartfee", []any{targetBlocks}, &resp); err != nil {
