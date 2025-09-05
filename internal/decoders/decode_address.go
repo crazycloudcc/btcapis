@@ -36,7 +36,7 @@ func AddressToType(addr string) (types.AddressType, error) {
 	case *btcutil.AddressTaproot:
 		return types.AddrP2TR, nil
 	default:
-		return types.AddrUnknown, nil
+		return types.AddrUnknown, fmt.Errorf("unknown address type: %T", decodeAddr)
 	}
 }
 
