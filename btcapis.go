@@ -1,6 +1,8 @@
 package btcapis
 
 import (
+	"fmt"
+
 	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
 	"github.com/crazycloudcc/btcapis/internal/adapters/electrumx"
 	"github.com/crazycloudcc/btcapis/internal/adapters/mempoolapis"
@@ -9,6 +11,16 @@ import (
 	"github.com/crazycloudcc/btcapis/internal/tx"
 	"github.com/crazycloudcc/btcapis/types"
 )
+
+type Config struct {
+	Network         string // 网络类型: mainnet, testnet, signet
+	Timeout         int    // 超时时间（秒）
+	RPCUrl          string // Bitcoin Core RPC服务器地址
+	RPCUser         string // Bitcoin Core RPC用户名
+	RPCPass         string // Bitcoin Core RPC密码
+	MempoolSpaceUrl string // mempool.space API地址
+	ElectrumXUrl    string // ElectrumX服务器地址
+}
 
 type Client struct {
 	// bitcoindrpcClient *bitcoindrpc.Client // bitcoindrpc接口调用集合.
@@ -23,34 +35,27 @@ var bitcoindrpcClient *bitcoindrpc.Client
 var mempoolapisClient *mempoolapis.Client
 var electrumxClient *electrumx.Client
 
-func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Client {
-	types.SetCurrentNetwork(network)
+func New(cfg *Config) *Client {
+	if cfg == nil {
+		fmt.Println("cfg == nil")
+		return nil
+	}
+
+	types.SetCurrentNetwork(cfg.Network)
 
 	client := &Client{}
 
-	if rpc_url != "" {
-		bitcoindrpcClient = bitcoindrpc.New(rpc_url, rpc_user, rpc_pass, timeout)
+	if cfg.RPCUrl != "" {
+		bitcoindrpcClient = bitcoindrpc.New(cfg.RPCUrl, cfg.RPCUser, cfg.RPCPass, cfg.Timeout)
 	}
 
-	mempool_rpc_url := ""
-	if network == "mainnet" {
-		mempool_rpc_url = "https://mempool.space"
-	} else if network == "signet" {
-		mempool_rpc_url = "https://mempool.space/signet"
-	} else if network == "testnet" {
-		mempool_rpc_url = "https://mempool.space/testnet"
+	if cfg.MempoolSpaceUrl != "" {
+		mempoolapisClient = mempoolapis.New(cfg.MempoolSpaceUrl, cfg.Timeout)
 	}
-	mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
 
-	ex_rpc_url := ""
-	if network == "mainnet" {
-		ex_rpc_url = "http://localhost:50001"
-	} else if network == "signet" {
-		ex_rpc_url = "https://blockstream.info/electrum"
-	} else if network == "testnet" {
-		ex_rpc_url = "https://blockstream.info/electrum"
+	if cfg.ElectrumXUrl != "" {
+		electrumxClient = electrumx.New(cfg.ElectrumXUrl, cfg.Timeout)
 	}
-	electrumxClient = electrumx.New(ex_rpc_url, timeout)
 
 	client.addressClient = address.New(bitcoindrpcClient, mempoolapisClient, electrumxClient)
 	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, client.addressClient)
