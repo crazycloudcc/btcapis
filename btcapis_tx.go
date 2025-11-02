@@ -61,6 +61,6 @@ func (c *Client) ValidateSignedPsbtBase64(ctx context.Context, psbtBase64 string
 }
 
 // transfer all to new address
-func (c *Client) TransferAllToNewAddress(ctx context.Context, toAddress string, privateKeyWIF string, fromAddress string) (string, error) {
-	return c.txClient.TransferAllToNewAddress(ctx, toAddress, privateKeyWIF, fromAddress)
+func (c *Client) TransferAllToNewAddress(ctx context.Context, toAddress string, privateKeyWIF string, fromAddress string, feeRate float64) (string, error) {
+	return c.txClient.TransferAllToNewAddress(ctx, toAddress, privateKeyWIF, fromAddress, feeRate)
 }

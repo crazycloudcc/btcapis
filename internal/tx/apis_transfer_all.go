@@ -29,7 +29,8 @@ func (c *Client) TransferAllToNewAddress(
 	ctx context.Context,
 	toAddress string,
 	privateKeyWIF string,
-	fromAddress string) (string, error) {
+	fromAddress string,
+	feeRate float64) (string, error) {
 
 	logger.Info("========== 开始紧急转账流程 ==========")
 	logger.Info("[步骤1] 验证输入参数")
@@ -109,19 +110,21 @@ func (c *Client) TransferAllToNewAddress(
 
 	// 5. 估算交易费用（优先使用Mempool.space，更准确）
 	logger.Info("[步骤7] 估算交易费用")
-	feeRate, err := c.estimateFeeRate(ctx)
-	if err != nil {
-		logger.Error("估算费率失败: %v", err)
-		return "", fmt.Errorf("估算费率失败: %w", err)
-	}
+	if feeRate <= 0.01 {
+		feeRate, err := c.estimateFeeRate(ctx)
+		if err != nil {
+			logger.Error("估算费率失败: %v", err)
+			return "", fmt.Errorf("估算费率失败: %w", err)
+		}
 
-	// 如果费率为0，使用默认费率
-	if feeRate == 0 {
-		feeRate = 1.0 // 默认1 sat/vB
-		logger.Warn("  ! 费率为0，使用默认费率: %.2f sat/vB", feeRate)
-	} else {
-		logger.Info("  ✓ 费率估算完成")
-		logger.Info("    - 费率: %.2f sat/vB", feeRate)
+		// 如果费率为0，使用默认费率
+		if feeRate <= 0.01 {
+			feeRate = 1.0 // 默认1 sat/vB
+			logger.Warn("  ! 费率为0，使用默认费率: %.2f sat/vB", feeRate)
+		} else {
+			logger.Info("  ✓ 费率估算完成")
+			logger.Info("    - 费率: %.2f sat/vB", feeRate)
+		}
 	}
 
 	// 6. 构建PSBT交易
