@@ -40,13 +40,17 @@ func New(network string, rpc_url, rpc_user, rpc_pass string, timeout int) *Clien
 	} else if network == "testnet" {
 		mempool_rpc_url = "https://mempool.space/testnet"
 	}
+	mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
 
-	if mempool_rpc_url != "" {
-		mempoolapisClient = mempoolapis.New(mempool_rpc_url, timeout)
+	ex_rpc_url := ""
+	if network == "mainnet" {
+		ex_rpc_url = "http://localhost:50001"
+	} else if network == "signet" {
+		ex_rpc_url = "https://blockstream.info/electrum"
+	} else if network == "testnet" {
+		ex_rpc_url = "https://blockstream.info/electrum"
 	}
-
-	// ElectrumX client is optional and should be configured separately
-	// Use NewWithElectrumX() to create a client with ElectrumX support
+	electrumxClient = electrumx.New(ex_rpc_url, timeout)
 
 	client.addressClient = address.New(bitcoindrpcClient, mempoolapisClient, electrumxClient)
 	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, client.addressClient)
