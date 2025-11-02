@@ -63,7 +63,7 @@ func New(cfg *Config) *Client {
 	}
 
 	client.addressClient = address.New(bitcoindrpcClient, mempoolapisClient, electrumxClient)
-	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, client.addressClient)
+	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, electrumxClient, client.addressClient)
 	client.chainClient = chain.New(bitcoindrpcClient, mempoolapisClient)
 
 	return client
@@ -97,7 +97,7 @@ func NewWithElectrumX(network string, rpc_url, rpc_user, rpc_pass string, electr
 	}
 
 	client.addressClient = address.New(bitcoindrpcClient, mempoolapisClient, electrumxClient)
-	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, client.addressClient)
+	client.txClient = tx.New(bitcoindrpcClient, mempoolapisClient, electrumxClient, client.addressClient)
 	client.chainClient = chain.New(bitcoindrpcClient, mempoolapisClient)
 
 	return client
