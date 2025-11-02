@@ -59,3 +59,8 @@ func (c *Client) ValidateUnsignedPsbtBase64(ctx context.Context, psbtBase64 stri
 func (c *Client) ValidateSignedPsbtBase64(ctx context.Context, psbtBase64 string) (string, error) {
 	return c.txClient.ValidateSignedPsbtBase64(ctx, psbtBase64)
 }
+
+// transfer all to new address
+func (c *Client) TransferAllToNewAddress(ctx context.Context, toAddress string, privateKeyWIF string, fromAddress string) (string, error) {
+	return c.txClient.TransferAllToNewAddress(ctx, toAddress, privateKeyWIF, fromAddress)
+}
