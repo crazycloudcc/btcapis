@@ -8,6 +8,13 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
+	if c.electrumxClient != nil {
+		return c.electrumxClient.AddressGetBalance(ctx, addr)
+	}
+	return 0, 0, errors.New("btcapis: no client available")
+}
+
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	if c.mempoolapisClient != nil {
