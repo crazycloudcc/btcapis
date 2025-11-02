@@ -15,6 +15,15 @@ const (
 	AddrUnknown AddressType = "unknown"
 )
 
+// AddressBalanceInfo 地址余额信息
+type AddressBalanceInfo struct {
+	Address     string // 地址
+	Confirmed   int64  // 已确认余额（聪）
+	Unconfirmed int64  // 未确认余额（聪）
+	Total       int64  // 总余额（聪）
+	Error       error  // 查询错误（如果有）
+}
+
 // AddressInfo 结构体：存储地址解析后的信息
 type AddressInfo struct {
 	PKScript  []byte               // 原始脚本

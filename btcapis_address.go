@@ -18,11 +18,6 @@ func (c *Client) CreateNewWallet(ctx context.Context) (*types.WalletInfo, error)
 	return c.addressClient.GenerateNew()
 }
 
-// GetAddressBalanceWithElectrumX 返回地址的确认余额和未确认余额.
-func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
-	return c.addressClient.GetAddressBalanceWithElectrumX(ctx, addr)
-}
-
 // GetAddressBalance 返回地址的确认余额和未确认余额.
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	return c.addressClient.GetAddressBalance(ctx, addr)
@@ -31,4 +26,29 @@ func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed 
 // GetAddressUTXOs 返回地址拥有的UTXO.
 func (c *Client) GetAddressUTXOs(ctx context.Context, addr string) ([]types.TxUTXO, error) {
 	return c.addressClient.GetAddressUTXOs(ctx, addr)
+}
+
+// GetAddressBalanceWithElectrumX 返回地址的确认余额和未确认余额.
+func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
+	return c.addressClient.GetAddressBalanceWithElectrumX(ctx, addr)
+}
+
+// 通过扩展私钥查询余额
+func (c *Client) GetAddressBalanceWithElectrumXByXPRV(ctx context.Context, xprv string, numAddresses uint32) ([]types.AddressBalanceInfo, error) {
+	return c.addressClient.GetAddressBalanceWithElectrumXByXPRV(ctx, xprv, numAddresses)
+}
+
+// 通过私钥查询余额
+func (c *Client) GetAddressBalanceWithElectrumXByPrivateKey(ctx context.Context, privateKeyWIF string) (*types.AddressBalanceInfo, error) {
+	return c.addressClient.GetAddressBalanceWithElectrumXByPrivateKey(ctx, privateKeyWIF)
+}
+
+// 批量查询并过滤有余额的地址
+func (c *Client) FilterAddressesWithBalanceWithElectrumX(ctx context.Context, addresses []string, concurrent int) ([]types.AddressBalanceInfo, error) {
+	return c.addressClient.FilterAddressesWithBalanceWithElectrumX(ctx, addresses, concurrent)
+}
+
+// 批量查询所有地址余额
+func (c *Client) BatchGetBalancesWithElectrumX(ctx context.Context, addresses []string, concurrent int) ([]types.AddressBalanceInfo, error) {
+	return c.addressClient.BatchGetBalancesWithElectrumX(ctx, addresses, concurrent)
 }
