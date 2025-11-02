@@ -10,9 +10,39 @@ import (
 
 func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	if c.electrumxClient != nil {
-		return c.electrumxClient.AddressGetBalance(ctx, addr)
+		confirmedSats, unconfirmedSats, err := c.electrumxClient.AddressGetBalance(ctx, addr)
+		if err != nil {
+			return 0, 0, err
+		}
+		// 将 satoshis 转换为 BTC (除以 1e8)
+		return float64(confirmedSats), float64(unconfirmedSats), nil
 	}
 	return 0, 0, errors.New("btcapis: no client available")
+}
+
+// GetAddressUTXOsWithElectrumX 通过ElectrumX获取地址的UTXO
+func (c *Client) GetAddressUTXOsWithElectrumX(ctx context.Context, addr string) ([]types.TxUTXO, error) {
+	if c.electrumxClient != nil {
+		UTXODTOs, err := c.electrumxClient.AddressGetUTXOs(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		utxos := make([]types.TxUTXO, 0, len(UTXODTOs))
+		for _, dto := range UTXODTOs {
+			txidBytes, _ := hex.DecodeString(dto.TxHash)
+			u := types.TxUTXO{
+				OutPoint: types.TxOutPoint{Hash: types.Hash32(txidBytes), Index: dto.TxPos},
+				Value:    dto.Value,
+			}
+			if dto.Height > 0 {
+				u.Height = uint32(dto.Height)
+			}
+			utxos = append(utxos, u)
+		}
+		return utxos, nil
+	}
+	return nil, errors.New("btcapis: no electrumx client available")
 }
 
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.

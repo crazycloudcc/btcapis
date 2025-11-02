@@ -5,13 +5,13 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
-	"log"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	bip39 "github.com/cosmos/go-bip39"
+	"github.com/crazycloudcc/btcapis/pkg/logger"
 	"github.com/crazycloudcc/btcapis/types"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -261,6 +261,6 @@ func tapTweakTaggedHash(xOnly []byte, merkleRoot []byte) [32]byte {
 
 func must(err error) {
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error: %v", err)
 	}
 }

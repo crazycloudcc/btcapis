@@ -12,6 +12,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/cosmos/go-bip39 v1.0.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.35.0
 )
 

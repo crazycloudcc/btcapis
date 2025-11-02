@@ -4,12 +4,14 @@ import (
 	"context"
 
 	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
+	"github.com/crazycloudcc/btcapis/internal/adapters/electrumx"
 	"github.com/crazycloudcc/btcapis/internal/adapters/mempoolapis"
 )
 
 type TestClient struct {
 	bitcoindrpcClient *bitcoindrpc.Client
 	mempoolapisClient *mempoolapis.Client
+	electrumxClient   *electrumx.Client
 }
 
 // 获取节点网络信息
