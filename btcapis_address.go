@@ -18,6 +18,11 @@ func (c *Client) CreateNewWallet(ctx context.Context) (*types.WalletInfo, error)
 	return c.addressClient.GenerateNew()
 }
 
+// GetAddressBalanceWithElectrumX 返回地址的确认余额和未确认余额.
+func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
+	return c.addressClient.GetAddressBalanceWithElectrumX(ctx, addr)
+}
+
 // GetAddressBalance 返回地址的确认余额和未确认余额.
 func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	return c.addressClient.GetAddressBalance(ctx, addr)
