@@ -6,7 +6,7 @@ import (
 )
 
 // 获取地址余额
-func (c *Client) AddressGetBalance(ctx context.Context, addr string) (int64, int64, error) {
+func (c *Client) AddressGetBalance(ctx context.Context, addr string) (float64, float64, error) {
 	u := *c.base
 	u.Path = path.Join(u.Path, "/api/address/", addr)
 	var dto struct {
@@ -24,7 +24,7 @@ func (c *Client) AddressGetBalance(ctx context.Context, addr string) (int64, int
 	}
 	confirmed := dto.ChainStats.Funded - dto.ChainStats.Spent
 	mempool := dto.MempoolStats.Funded - dto.MempoolStats.Spent
-	return confirmed, mempool, nil
+	return float64(confirmed), float64(mempool), nil
 }
 
 // 获取地址 UTXO

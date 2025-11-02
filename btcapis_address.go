@@ -14,7 +14,7 @@ func (c *Client) ImportAddressAndPublickey(ctx context.Context, address string, 
 }
 
 // GetAddressBalance 返回地址的确认余额和未确认余额.
-func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed int64, mempool int64, err error) {
+func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
 	return c.addressClient.GetAddressBalance(ctx, addr)
 }
 

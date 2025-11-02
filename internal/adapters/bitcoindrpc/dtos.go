@@ -22,7 +22,7 @@ type scanResult struct {
 
 // 估算交易费率数据结构
 type FeeRateSmartDTO struct {
-	Feerate float64 `json:"feerate"` // 交易费率(BTC/KB)
+	Feerate float64 `json:"feerate"` // 交易费率(Sats)
 	Blocks  int     `json:"blocks"`  // 目标区块数
 }
 
