@@ -12,6 +12,11 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+/* mempool.space
+ * mainnet: https://mempool.space, signet: /signet, testnet: /testnet
+ * ex: http://localhost:50001, https://blockstream.info/electrum
+ */
+
 type Config struct {
 	Network         string // 网络类型: mainnet, testnet, signet
 	Timeout         int    // 超时时间（秒）
