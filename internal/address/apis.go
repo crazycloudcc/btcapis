@@ -8,13 +8,13 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
-func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
+// GetAddressBalanceWithElectrumX 通过ElectrumX获取地址的余额
+func (c *Client) GetAddressBalanceWithElectrumX(ctx context.Context, addr string) (float64, float64, error) {
 	if c.electrumxClient != nil {
 		confirmedSats, unconfirmedSats, err := c.electrumxClient.AddressGetBalance(ctx, addr)
 		if err != nil {
 			return 0, 0, err
 		}
-		// 将 satoshis 转换为 BTC (除以 1e8)
 		return float64(confirmedSats), float64(unconfirmedSats), nil
 	}
 	return 0, 0, errors.New("btcapis: no client available")
@@ -46,7 +46,7 @@ func (c *Client) GetAddressUTXOsWithElectrumX(ctx context.Context, addr string) 
 }
 
 // GetAddressBalance 通过地址, 获取地址的确认余额和未确认余额.
-func (c *Client) GetAddressBalance(ctx context.Context, addr string) (confirmed float64, mempool float64, err error) {
+func (c *Client) GetAddressBalance(ctx context.Context, addr string) (float64, float64, error) {
 	if c.mempoolapisClient != nil {
 		return c.mempoolapisClient.AddressGetBalance(ctx, addr)
 	}
