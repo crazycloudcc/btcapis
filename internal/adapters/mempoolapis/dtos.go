@@ -41,4 +41,6 @@ type FeeRateDTO struct {
 	FastestFee  float64 `json:"fastestFee"`
 	HalfHourFee float64 `json:"halfHourFee"`
 	HourFee     float64 `json:"hourFee"`
+	EconomyFee  float64 `json:"economyFee"`
+	MinimumFee  float64 `json:"minimumFee"`
 }

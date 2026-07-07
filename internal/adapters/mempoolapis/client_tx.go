@@ -52,8 +52,5 @@ func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (*FeeRat
 	if err := c.getJSON(ctx, u.String(), &dto); err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("mempooldto: %+v\n", dto)
-
 	return &dto, nil
 }

@@ -153,7 +153,23 @@ log.Printf("交易已广播: %s", txid)
 ### 链信息查询
 
 ```go
-// 费率估算
+// 统一费率结构（sat/vB，保留 2 位小数）
+fees, err := client.EstimateChainFees(ctx, 6)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("high=%.2f medium=%.2f low=%.2f feerate=%.2f blocks=%d",
+    fees.High, fees.Medium, fees.Low, fees.FeeRate, fees.Blocks)
+
+// apis 完整降级链（mempool → unisat → okx → electrumX → bitcoin core）
+fees, err = client.EstimateChainFeesForAPI(ctx, 6, btcapis.APIFeesProviderOptions{
+    Unisat: unisatClient,
+    OKX:    okxClient,
+})
+```
+
+```go
+// 兼容旧接口
 fastRate, economyRate, err := client.EstimateFeeRate(ctx, 6)
 if err != nil {
     log.Fatal(err)

@@ -2,39 +2,51 @@ package btcapis
 
 import (
 	"context"
+
+	"github.com/crazycloudcc/btcapis/extensions/okx"
+	"github.com/crazycloudcc/btcapis/extensions/unisat"
+	"github.com/crazycloudcc/btcapis/internal/chain"
+	"github.com/crazycloudcc/btcapis/types"
 )
 
-// EstimateFeeRate 估计手续费.
-func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, float64, error) {
-	return c.chainClient.EstimateFeeRate(ctx, targetBlocks)
+// EstimateChainFees 使用默认节点 Provider 链估算手续费（mempool.space → electrumX → bitcoin core）
+func (c *Client) EstimateChainFees(ctx context.Context, targetBlocks int64) (*types.ChainFees, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrProviderUnavailable
+	}
+	return c.chainClient.EstimateChainFeesDefault(ctx, targetBlocks)
 }
 
-// // 查询 UTXO
-// func (c *Client) GetUTXO(ctx context.Context, hash [32]byte, index uint32) ([]byte, int64, error) {
-// 	return c.chainClient.GetUTXO(ctx, hash, index)
-// }
+// EstimateChainFeesWithProviders 自定义 Provider 顺序
+func (c *Client) EstimateChainFeesWithProviders(ctx context.Context, targetBlocks int64, providers []chain.FeesProvider) (*types.ChainFees, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrProviderUnavailable
+	}
+	return c.chainClient.EstimateChainFeesWithProviders(ctx, targetBlocks, providers)
+}
 
-// // 获取节点区块数量
-// func (c *Client) GetBlockCount(ctx context.Context) (int, error) {
-// 	return c.chainClient.GetBlockCount(ctx)
-// }
+// APIFeesProviderOptions apis 服务费率 Provider 配置
+type APIFeesProviderOptions struct {
+	Unisat *unisat.Client
+	OKX    *okx.Client
+}
 
-// // 获取最新区块的hash
-// func (c *Client) GetBestBlockHash(ctx context.Context) (string, error) {
-// 	return c.chainClient.GetBestBlockHash(ctx)
-// }
+// EstimateChainFeesForAPI 使用 apis 完整降级链估算手续费
+// mempool.space → unisat → okx → electrumX → bitcoin core
+func (c *Client) EstimateChainFeesForAPI(ctx context.Context, targetBlocks int64, opts APIFeesProviderOptions) (*types.ChainFees, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrProviderUnavailable
+	}
+	clients := c.chainClient.NewFeesClients()
+	providers := chain.APIFeesProviders(clients.Mempool, opts.Unisat, opts.OKX, clients.Electrum, clients.Bitcoind)
+	return c.chainClient.EstimateChainFeesWithProviders(ctx, targetBlocks, providers)
+}
 
-// // 使用区块高度 查询区块哈希
-// func (c *Client) GetBlockHash(ctx context.Context, height int64) (string, error) {
-// 	return c.chainClient.GetBlockHash(ctx, height)
-// }
-
-// // 使用区块block hash 查询区块头
-// func (c *Client) GetBlockHeader(ctx context.Context, hash string) (*types.ChainBlock, error) {
-// 	return c.chainClient.GetBlockHeader(ctx, hash)
-// }
-
-// // 使用区块block hash 查询区块
-// func (c *Client) GetBlock(ctx context.Context, hash string) (*types.ChainBlock, error) {
-// 	return c.chainClient.GetBlock(ctx, hash)
-// }
+// EstimateFeeRate 兼容旧接口：返回高优先级费率与低优先级费率（sat/vB）
+func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64, float64, error) {
+	fees, err := c.EstimateChainFees(ctx, int64(targetBlocks))
+	if err != nil {
+		return 0, 0, err
+	}
+	return fees.High, fees.Low, nil
+}

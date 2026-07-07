@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
+	"github.com/crazycloudcc/btcapis/internal/chain"
 	"github.com/crazycloudcc/btcapis/pkg/logger"
 	"github.com/crazycloudcc/btcapis/types"
 )
@@ -234,55 +235,19 @@ func (c *Client) getAddressUTXOs(ctx context.Context, address string) ([]bitcoin
 }
 
 // estimateFeeRate 估算费率（sat/vB）
-// 优先使用Mempool.space（更准确的实时费率），否则使用Bitcoin Core
 func (c *Client) estimateFeeRate(ctx context.Context) (float64, error) {
-	// 优先使用Mempool.space
-	if c.mempoolapisClient != nil {
-		logger.Info("    - 使用Mempool.space估算费率")
-		feeDTO, err := c.mempoolapisClient.EstimateFeeRate(ctx, 6)
-		if err == nil {
-			// 使用1小时内确认的费率（更经济）
-			feeRate := feeDTO.HourFee
-			if feeRate == 0 {
-				// 如果1小时费率为0，使用30分钟费率
-				feeRate = feeDTO.HalfHourFee
-			}
-			if feeRate == 0 {
-				// 如果还是0，使用最快费率
-				feeRate = feeDTO.FastestFee
-			}
-			logger.Info("    - Mempool.space返回费率: 最快=%.2f, 30分钟=%.2f, 1小时=%.2f sat/vB",
-				feeDTO.FastestFee, feeDTO.HalfHourFee, feeDTO.HourFee)
-			return feeRate, nil
-		}
-		logger.Warn("    - Mempool.space查询失败: %v，尝试使用Bitcoin Core", err)
-	}
-
-	// 优先使用ElectrumX
-	if c.electrumxClient != nil {
-		logger.Info("    - 使用ElectrumX估算费率")
-		feeRate, err := c.electrumxClient.EstimateFee(ctx, 6)
-		if err == nil && feeRate > 0 {
-			// ElectrumX返回的是BTC/KB，需要转换为sat/vB
-			// 1 BTC/KB = 100,000 sat/vB
-			feeRateSatVB := feeRate * 100000
-			logger.Info("    - ElectrumX返回费率: %.8f BTC/KB (%.2f sat/vB)", feeRate, feeRateSatVB)
-			return feeRateSatVB, nil
-		}
-		logger.Warn("    - ElectrumX查询失败: %v，尝试使用Bitcoin Core", err)
-	}
-
-	// 备用方案：使用Bitcoin Core
-	if c.bitcoindrpcClient != nil {
-		logger.Info("    - 使用Bitcoin Core estimatesmartfee")
-		feeDTO, err := c.bitcoindrpcClient.ChainEstimateSmartFeeRate(ctx, 6)
-		if err == nil {
-			return feeDTO.Feerate, nil
-		}
+	chainClient := chain.New(c.bitcoindrpcClient, c.mempoolapisClient, c.electrumxClient)
+	fees, err := chainClient.EstimateChainFeesDefault(ctx, 6)
+	if err != nil {
 		return 0, err
 	}
-
-	return 0, fmt.Errorf("没有可用的费率估算服务")
+	if fees.FeeRate > 0 {
+		return fees.FeeRate, nil
+	}
+	if fees.Medium > 0 {
+		return fees.Medium, nil
+	}
+	return fees.High, nil
 }
 
 // getAddressType 获取地址类型描述

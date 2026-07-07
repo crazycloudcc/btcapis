@@ -46,20 +46,28 @@ func InitLogger(level string) {
 
 // Debug 调试日志
 func Debug(format string, args ...interface{}) {
-	Log.Debugf(format, args...)
+	if Log != nil {
+		Log.Debugf(format, args...)
+	}
 }
 
 // Info 信息日志
 func Info(format string, args ...interface{}) {
-	Log.Infof(format, args...)
+	if Log != nil {
+		Log.Infof(format, args...)
+	}
 }
 
 // Warn 警告日志
 func Warn(format string, args ...interface{}) {
-	Log.Warnf(format, args...)
+	if Log != nil {
+		Log.Warnf(format, args...)
+	}
 }
 
 // Error 错误日志
 func Error(format string, args ...interface{}) {
-	Log.Errorf(format, args...)
+	if Log != nil {
+		Log.Errorf(format, args...)
+	}
 }
