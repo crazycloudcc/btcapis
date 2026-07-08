@@ -43,6 +43,9 @@ logs/
 .env
 .env.local
 .env.production
+**/*.p8
+**/*.pem
+**/AuthKey_*
 
 # Temporary files
 tmp/

@@ -1,43 +1,33 @@
 # BTCAPIs
 
+**English** | [简体中文](README.zh-CN.md)
+
 [![Go Version](https://img.shields.io/badge/Go-1.23+-blue.svg)](https://golang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-detailed-green.svg)](docs/)
 
-一个功能全面的 Go 语言比特币 API 库，提供地址处理、交易操作、PSBT 管理、脚本解析等核心功能。支持多种数据源，包括 Bitcoin Core RPC 和 Mempool.space API。
+A Go library for Bitcoin on-chain operations, used by services such as [chainbox](https://github.com/chainboxapp). It covers address queries, transaction build/broadcast, PSBT, chain RPC, mempool queries, fee estimation, and script parsing — with multi-source fallback across Bitcoin Core RPC, mempool.space, and ElectrumX.
 
-## 🚀 特性
+Current version: **v0.4.0** (see [CHANGELOG.md](CHANGELOG.md))
 
-### 核心功能
+## Features
 
-- **地址处理** - 支持所有比特币地址类型（P2PKH、P2SH、P2WPKH、P2WSH、P2TR）
-- **交易操作** - 创建、签名、广播比特币交易
-- **PSBT 支持** - 完整的 PSBT（部分签名比特币交易）工厂实现
-- **脚本解析** - 比特币脚本编码/解码与分析
-- **UTXO 管理** - 查询和管理未花费交易输出
-- **费率估算** - 智能费率计算和优化
+- **Address**: balance/UTXO queries, validation, wallet generation; ElectrumX batch queries and custom Provider injection
+- **Transaction**: raw/verbose tx queries, mempool pre-check, PSBT v0 create/validate/broadcast
+- **Chain RPC**: network info, chain state, block header/block, hash by height
+- **Fees**: unified `types.ChainFees` (sat/vB); default fallback chain + API chain (unisat/okx)
+- **Mempool**: stats, tx status, recommended fees, mempool txid/entry
+- **Script/Decode**: address↔script conversion, ASM parsing, raw tx decoding
+- **Networks**: mainnet / testnet / signet
 
-### 数据源支持
-
-- **Bitcoin Core RPC** - 直接连接比特币核心节点
-- **Mempool.space API** - 支持主网、测试网、Signet
-- **多后端架构** - 可扩展的提供商系统
-
-### 网络支持
-
-- ✅ **主网 (Mainnet)**
-- ✅ **测试网 (Testnet)**
-- ✅ **Signet**
-
-## 📦 安装
+## Install
 
 ```bash
-go get github.com/crazycloudcc/btcapis
+go get github.com/crazycloudcc/btcapis@v0.4.0
 ```
 
-## 🔧 快速开始
+## Quick Start
 
-### 基础初始化
+### Create a client
 
 ```go
 package main
@@ -45,412 +35,284 @@ package main
 import (
     "context"
     "log"
-    "time"
 
     "github.com/crazycloudcc/btcapis"
 )
 
 func main() {
-    // 创建客户端连接
-    client := btcapis.New(
-        "testnet",                    // 网络: mainnet, testnet, signet
-        "http://localhost:18332",     // Bitcoin Core RPC URL
-        "rpcuser",                    // RPC 用户名
-        "rpcpassword",               // RPC 密码
-        30,                          // 超时时间(秒)
-    )
-
-    ctx := context.Background()
-
-    // 检查连接
-    blockCount, err := client.GetBlockCount(ctx)
-    if err != nil {
-        log.Fatal("连接失败:", err)
+    client := btcapis.New(&btcapis.Config{
+        Network:         "testnet",
+        Timeout:         30,
+        RPCUrl:          "http://127.0.0.1:18332",
+        RPCUser:         "rpcuser",      // inject via env or config — never hardcode
+        RPCPass:         "rpcpassword",
+        MempoolSpaceUrl: "https://mempool.space/testnet",
+        ElectrumXUrl:    "", // optional, e.g. https://blockstream.info/testnet/api
+    })
+    if client == nil {
+        log.Fatal("client init failed")
     }
 
-    log.Printf("当前区块高度: %d", blockCount)
+    ctx := context.Background()
+    info, err := client.GetBlockChainInfo(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("chain=%s blocks=%d", info.Chain, info.Blocks)
 }
 ```
 
-### 地址操作
+Shortcut constructor (auto-fills mempool.space URL by network):
 
 ```go
-// 查询地址余额
+client := btcapis.NewWithElectrumX(
+    "testnet",
+    "http://127.0.0.1:18332", "rpcuser", "rpcpassword",
+    "wss://electrum.example.com:50002", // ElectrumX, may be empty
+    30,
+)
+```
+
+> **Security**: RPC passwords, Unisat/OKX API keys, and other credentials must be injected via environment variables or local config files. **Never commit them to git.** See `.gitignore`.
+
+### Address queries
+
+```go
+// default: mempool.space → bitcoin core
 confirmed, mempool, err := client.GetAddressBalance(ctx, "tb1q...")
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("确认余额: %d satoshi, 未确认: %d satoshi", confirmed, mempool)
-
-// 获取地址 UTXO
 utxos, err := client.GetAddressUTXOs(ctx, "tb1q...")
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("UTXO 数量: %d", len(utxos))
 
-// 地址类型解析
+// with custom ElectrumX Provider (e.g. TCP — implement types.ElectrumXAddressProvider)
+balance, err := client.GetAddressBalanceSatsWithOptions(ctx, "tb1q...", types.AddressProviderOptions{
+    ElectrumX: myElectrumProvider,
+})
+
 addrType, err := client.DecodeAddressToType("tb1q...")
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("地址类型: %s", addrType)
 ```
 
-### 交易操作
-
-```go
-// 查询交易信息
-tx, err := client.GetTx(ctx, "交易ID")
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("交易版本: %d, 输入数: %d, 输出数: %d",
-    tx.Version, len(tx.TxIn), len(tx.TxOut))
-
-// 获取原始交易数据
-rawTx, err := client.GetTxRaw(ctx, "交易ID")
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("原始交易大小: %d bytes", len(rawTx))
-```
-
-### PSBT 交易创建
+### Transactions & PSBT
 
 ```go
 import "github.com/crazycloudcc/btcapis/types"
 
-// 构建交易参数
-txParams := &types.TxInputParams{
-    FromAddress: []string{"tb1p..."},          // 发送地址
-    ToAddress:   []string{"tb1q..."},          // 接收地址
-    AmountBTC:   []float64{0.001},             // 金额 (BTC)
-    FeeRate:     1.0,                          // 费率 (sat/vB)
-    Locktime:    0,                            // 锁定时间
-    Replaceable: true,                         // 支持 RBF
-    Data:        "Hello Bitcoin",              // 可选数据 (OP_RETURN)
-    PublicKey:   "公钥十六进制",                // 公钥
-    ChangeAddress: "tb1p...",                  // 找零地址
-}
+tx, err := client.GetTx(ctx, "txid...")
+verbose, err := client.GetTxVerbose(ctx, "txid...", 1)
 
-// 创建 PSBT
-psbtBase64, err := client.CreatePSBT(ctx, txParams)
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("PSBT: %s", psbtBase64)
+psbtBase64, err := client.CreatePSBT(ctx, &types.TxInputParams{
+    FromAddress:   []string{"tb1p..."},
+    ToAddress:     []string{"tb1q..."},
+    AmountBTC:     []float64{0.001},
+    FeeRate:       1.0,
+    ChangeAddress: "tb1p...",
+    Replaceable:   true,
+})
 
-// 完成签名并广播 (需要外部签名)
-signedPSBT := "..." // 签名后的 PSBT
 txid, err := client.FinalizePSBTAndBroadcast(ctx, signedPSBT)
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("交易已广播: %s", txid)
 ```
 
-### 链信息查询
+### Fee estimation
 
 ```go
-// 统一费率结构（sat/vB，保留 2 位小数）
+// default fallback: mempool.space → electrumX → bitcoin core
 fees, err := client.EstimateChainFees(ctx, 6)
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("high=%.2f medium=%.2f low=%.2f feerate=%.2f blocks=%d",
-    fees.High, fees.Medium, fees.Low, fees.FeeRate, fees.Blocks)
+// fees.High / Medium / Low / FeeRate (sat/vB, 2 decimal places)
 
-// apis 完整降级链（mempool → unisat → okx → electrumX → bitcoin core）
+// full API fallback chain (create extension clients with API keys)
+import (
+    "github.com/crazycloudcc/btcapis/extensions/okx"
+    "github.com/crazycloudcc/btcapis/extensions/unisat"
+)
+
+unisatClient, _ := unisat.New(unisat.Config{APIKey: os.Getenv("UNISAT_API_KEY")})
+okxClient, _ := okx.New(okx.Config{
+    APIKey:     os.Getenv("OKX_API_KEY"),
+    SecretKey:  os.Getenv("OKX_SECRET_KEY"),
+    Passphrase: os.Getenv("OKX_PASSPHRASE"),
+})
 fees, err = client.EstimateChainFeesForAPI(ctx, 6, btcapis.APIFeesProviderOptions{
     Unisat: unisatClient,
     OKX:    okxClient,
 })
+
+// legacy API
+high, low, err := client.EstimateFeeRate(ctx, 6)
 ```
 
+## Public API
+
+### Address — `btcapis_address.go` / `btcapis_mempool.go`
+
+| Method | Description |
+|--------|-------------|
+| `CreateNewWallet` | Generate new wallet (mnemonic/address/private key) |
+| `GetAddressBalance` | Confirmed/unconfirmed balance (BTC) |
+| `GetAddressUTXOs` | Address UTXO list |
+| `GetAddressBalanceSats` | Balance in sats via default provider |
+| `GetAddressUTXOsForAddress` | UTXOs as `types.AddressUTXO` |
+| `GetAddressBalanceSatsWithOptions` | Balance: electrumX → mempool.space |
+| `GetAddressUTXOsWithOptions` | UTXOs: electrumX → mempool.space |
+| `GetAddressHistoryTxs` | Tx history (requires `ElectrumXAddressProvider`) |
+| `GetAddressUnconfirmedTxs` | Unconfirmed txs (requires ElectrumX) |
+| `BatchGetAddressBalanceSats` | Batch balances (requires ElectrumX) |
+| `GetAddressBalanceWithElectrumX` | ElectrumX balance |
+| `GetAddressBalanceWithElectrumXByXPRV` | Balance via xprv-derived addresses |
+| `GetAddressBalanceWithElectrumXByPrivateKey` | Balance via WIF |
+| `FilterAddressesWithBalanceWithElectrumX` | Filter addresses with balance |
+| `BatchGetBalancesWithElectrumX` | ElectrumX batch balances |
+| `ValidateAddress` | Bitcoin Core `validateaddress` |
+
+### Transaction — `btcapis_tx.go`
+
+| Method | Description |
+|--------|-------------|
+| `GetTx` / `GetTxRaw` | Query and decode transaction |
+| `GetTxVerbose` | Verbose tx (core → mempool fallback) |
+| `CreatePSBT` | Create PSBT v0 |
+| `FinalizePSBTAndBroadcast` | Finalize PSBT and broadcast |
+| `BroadcastRawTx` | Broadcast raw transaction |
+| `ValidateUnsignedPsbtBase64` | Validate unsigned PSBT |
+| `ValidateSignedPsbtBase64` | Validate signed PSBT |
+| `TransferAllToNewAddress` | Transfer all (WIF signing) |
+| `TestMempoolAccept` | Mempool accept pre-check |
+| `GetMempoolTxIds` / `GetMempoolTxEntry` | Mempool tx queries |
+
+### Chain — `btcapis_chain.go`
+
+| Method | Description |
+|--------|-------------|
+| `EstimateChainFees` | Default fee fallback chain |
+| `EstimateChainFeesWithOptions` | Custom ElectrumX fee provider |
+| `EstimateChainFeesWithProviders` | Fully custom provider order |
+| `EstimateChainFeesForAPI` | Full API fallback chain |
+| `EstimateFeeRate` | Legacy API (high/low sat/vB) |
+| `GetNetworkInfo` / `GetBlockChainInfo` | Node/chain state |
+| `GetBlockStats` / `GetChainTips` | Block stats/fork tips |
+| `GetBlockHeader` / `GetBlock` | Block header/block (verbosity=1) |
+| `GetBlockHashByHeight` | Block hash by height |
+
+### Mempool — `btcapis_mempool.go`
+
+| Method | Description |
+|--------|-------------|
+| `GetMempoolStats` | Mempool statistics |
+| `GetMempoolTxStatus` | Transaction confirmation status |
+| `GetMempoolFeesRecommend` | mempool.space recommended fees |
+
+### Script/Decode — `btcapis_scripts.go`
+
+| Method | Description |
+|--------|-------------|
+| `DecodeAddressToScriptInfo` / `DecodeAddressToPkScript` / `DecodeAddressToType` | Address parsing |
+| `DecodePkScriptToAddressInfo` / `DecodePKScriptToType` | Script → address |
+| `DecodePkScriptToAsmString` | Script → opcodes/ASM |
+| `DecodeRawTx` / `DecodeRawTxString` | Raw tx decoding |
+
+### Format checkers — `btcapis_checkers.go`
+
+`CheckFormatAddress` / `CheckFormatTxid` / `CheckFormatHex` / `CheckFormatBase64`
+
+### Extension packages
+
+| Package | Purpose |
+|---------|---------|
+| `extensions/unisat` | Unisat Open API fee provider |
+| `extensions/okx` | OKX Web3 API fee provider |
+
+### Custom Provider interfaces — `types/`
+
 ```go
-// 兼容旧接口
-fastRate, economyRate, err := client.EstimateFeeRate(ctx, 6)
-if err != nil {
-    log.Fatal(err)
+// Address data source (implement in caller, e.g. TCP ElectrumX)
+type ElectrumXAddressProvider interface {
+    Name() string
+    GetBalanceSats(ctx context.Context, addr string) (*AddressBalanceSats, error)
+    GetUTXOs(ctx context.Context, addr string) ([]AddressUTXO, error)
+    GetHistoryTxs(ctx context.Context, addr string) ([]AddressHistoryTx, error)
+    GetUnconfirmedTxs(ctx context.Context, addr string) ([]AddressUnconfirmedTx, error)
+    BatchGetBalanceSats(ctx context.Context, addrs []string) ([]AddressBalanceSats, error)
 }
-log.Printf("快速费率: %.2f sat/vB, 经济费率: %.2f sat/vB", fastRate, economyRate)
 
-// 获取最新区块哈希
-bestHash, err := client.GetBestBlockHash(ctx)
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("最新区块: %s", bestHash)
-
-// 查询区块信息
-block, err := client.GetBlock(ctx, bestHash)
-if err != nil {
-    log.Fatal(err)
-}
-log.Printf("区块高度: %d, 交易数: %d", block.Height, len(block.Tx))
+// Fee data source
+type ChainFeesEstimator interface { ... }
 ```
 
-## 📋 完整功能列表
+## Data source configuration
 
-### 🏠 地址模块 (Address)
+Fill `Config` fields as needed; adapters without config are not initialized:
 
-| 功能      | 方法                            | 描述                      |
-| --------- | ------------------------------- | ------------------------- |
-| 余额查询  | `GetAddressBalance()`           | 查询地址的确认/未确认余额 |
-| UTXO 查询 | `GetAddressUTXOs()`             | 获取地址的未花费输出      |
-| 地址解析  | `DecodeAddressToScriptInfo()`   | 解析地址的详细脚本信息    |
-| 脚本转换  | `DecodeAddressToPkScript()`     | 地址转锁定脚本            |
-| 类型识别  | `DecodeAddressToType()`         | 识别地址类型              |
-| 脚本解析  | `DecodePkScriptToAddressInfo()` | 脚本转地址信息            |
+| Field | Description |
+|-------|-------------|
+| `Network` | `mainnet` / `testnet` / `signet` |
+| `RPCUrl` / `RPCUser` / `RPCPass` | Bitcoin Core JSON-RPC |
+| `MempoolSpaceUrl` | mempool.space API base URL |
+| `ElectrumXUrl` | ElectrumX HTTP endpoint |
+| `Timeout` | HTTP/RPC timeout (seconds) |
 
-### 💸 交易模块 (Transaction)
+Default mempool.space URLs (`NewWithElectrumX` auto-selects):
 
-| 功能      | 方法                          | 描述                   |
-| --------- | ----------------------------- | ---------------------- |
-| 交易查询  | `GetTx()`                     | 获取交易详细信息       |
-| 原始数据  | `GetTxRaw()`                  | 获取交易原始字节数据   |
-| PSBT 创建 | `CreatePSBT()`                | 创建部分签名比特币交易 |
-| PSBT 完成 | `FinalizePSBTAndBroadcast()`  | 完成签名并广播         |
-| 交易广播  | `BroadcastRawTx()`            | 广播原始交易           |
-| 地址导入  | `ImportAddressAndPublickey()` | 导入地址和公钥         |
+- mainnet → `https://mempool.space`
+- testnet → `https://mempool.space/testnet`
+- signet → `https://mempool.space/signet`
 
-### ⛓️ 区块链模块 (Chain)
+## Address types
 
-| 功能      | 方法                 | 描述                 |
-| --------- | -------------------- | -------------------- |
-| 费率估算  | `EstimateFeeRate()`  | 估算交易费率         |
-| UTXO 查询 | `GetUTXO()`          | 查询特定 UTXO 状态   |
-| 区块统计  | `GetBlockCount()`    | 获取区块链高度       |
-| 最新区块  | `GetBestBlockHash()` | 获取最新区块哈希     |
-| 区块哈希  | `GetBlockHash()`     | 根据高度获取区块哈希 |
-| 区块头    | `GetBlockHeader()`   | 获取区块头信息       |
-| 区块数据  | `GetBlock()`         | 获取完整区块信息     |
+| Type | Prefix | Supported |
+|------|--------|-----------|
+| P2PKH | `1...` / `m...` / `n...` | ✅ |
+| P2SH | `3...` / `2...` | ✅ |
+| P2WPKH / P2WSH | `bc1q...` / `tb1q...` | ✅ |
+| P2TR (Taproot) | `bc1p...` / `tb1p...` | ✅ |
 
-### 🔧 脚本模块 (Script)
-
-| 功能     | 方法                      | 描述             |
-| -------- | ------------------------- | ---------------- |
-| 脚本解析 | `DecodeScriptToOpcodes()` | 解析脚本为操作码 |
-| ASM 转换 | `DecodeScriptToASM()`     | 脚本转汇编格式   |
-| 类型检测 | `DecodePKScriptToType()`  | 检测脚本类型     |
-
-## 🏗️ 架构设计
-
-BTCAPIs 采用三层架构模式，提供清晰的关注点分离：
+## Project structure
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    门面层 (Facade)                          │
-│              btcapis.go, *_facade.go                        │
-├─────────────────────────────────────────────────────────────┤
-│                    端口层 (Ports)                           │
-│                chain/backend.go                             │
-├─────────────────────────────────────────────────────────────┤
-│                   适配器层 (Adapters)                       │
-│         providers/bitcoindrpc, mempoolspace                │
-└─────────────────────────────────────────────────────────────┘
+btcapis.go / btcapis_*.go     # public facade API
+types/                        # public types and Provider interfaces
+extensions/unisat|okx/        # optional fee extensions
+internal/
+  adapters/
+    bitcoindrpc/              # Bitcoin Core RPC
+    mempoolapis/              # mempool.space REST
+    electrumx/                # ElectrumX HTTP
+  address/                    # address queries and orchestration
+  chain/                      # chain RPC, fees, mempool
+  tx/                         # tx build, PSBT, broadcast
+  decoders/                   # address/script/tx decoding
+  ordinals/ / runes/          # internal only, not exported yet
+pkg/logger/                   # logging
+docs/                         # ElectrumX docs and RPC API lists
 ```
 
-### 核心模块
-
-- **`types/`** - 核心数据类型定义 (地址、交易、UTXO 等)
-- **`internal/adapters/`** - 数据源适配器 (Bitcoin Core, Mempool.space)
-- **`internal/address/`** - 地址处理逻辑
-- **`internal/tx/`** - 交易构建和管理
-- **`internal/chain/`** - 区块链交互
-- **`internal/decoders/`** - 编码解码工具
-
-## 🌐 数据源配置
-
-### Bitcoin Core RPC
-
-```go
-client := btcapis.New(
-    "mainnet",
-    "http://localhost:8332",  // RPC 地址
-    "rpcuser",                // 用户名
-    "rpcpassword",           // 密码
-    30,                      // 超时秒数
-)
-```
-
-### Mempool.space API
-
-自动根据网络配置：
-
-- **主网**: `https://mempool.space`
-- **测试网**: `https://mempool.space/testnet`
-- **Signet**: `https://mempool.space/signet`
-
-## 📖 地址类型支持
-
-| 地址类型           | 前缀      | 示例                                                             | 支持状态    |
-| ------------------ | --------- | ---------------------------------------------------------------- | ----------- |
-| P2PKH (Legacy)     | `1...`    | `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa`                             | ✅ 完整支持 |
-| P2SH (Script Hash) | `3...`    | `3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy`                             | ✅ 完整支持 |
-| P2WPKH (SegWit v0) | `bc1q...` | `bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4`                     | ✅ 完整支持 |
-| P2WSH (SegWit v0)  | `bc1q...` | `bc1qrp33g0q2c70qkn...`                                          | ✅ 完整支持 |
-| P2TR (Taproot)     | `bc1p...` | `bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297` | ✅ 完整支持 |
-
-## 🔐 PSBT 工作流程
-
-### 1. 创建未签名交易
-
-```go
-psbtBase64, err := client.CreatePSBT(ctx, &types.TxInputParams{
-    FromAddress:   []string{"发送地址"},
-    ToAddress:     []string{"接收地址"},
-    AmountBTC:     []float64{0.001},
-    FeeRate:       1.0,
-    ChangeAddress: "找零地址",
-})
-```
-
-### 2. 外部签名 (如硬件钱包)
-
-```go
-// 使用外部钱包签名 PSBT
-signedPSBT := signWithExternalWallet(psbtBase64)
-```
-
-### 3. 完成并广播
-
-```go
-txid, err := client.FinalizePSBTAndBroadcast(ctx, signedPSBT)
-```
-
-## ⚙️ 高级配置
-
-### 自定义网络参数
-
-```go
-import "github.com/crazycloudcc/btcapis/types"
-
-// 设置当前网络
-types.SetCurrentNetwork("testnet")
-```
-
-### 费率策略
-
-```go
-// 获取推荐费率
-fastRate, economyRate, err := client.EstimateFeeRate(ctx, 6)
-
-// 使用自定义费率
-txParams.FeeRate = 2.5  // sat/vB
-```
-
-## 🧪 测试示例
-
-查看 `examples/` 目录获取完整示例：
+## Development
 
 ```bash
-cd examples
-go run main.go
-```
-
-主要测试场景：
-
-- **连接测试** - 验证 Bitcoin Core 和 Mempool.space 连接
-- **地址操作** - 余额查询、UTXO 管理
-- **交易创建** - PSBT 工作流程
-- **脚本解析** - 地址和脚本转换
-
-## 📚 文档
-
-详细文档位于 `docs/` 目录：
-
-- **[架构设计](docs/ARCHITECTURE.md)** - 系统架构和设计原则
-- **[项目结构](docs/PROJECT_STRUCTURE.md)** - 目录组织和模块说明
-- **[提供商指南](docs/PROVIDERS.md)** - 数据源接入指南
-- **[btcd 兼容性](docs/COMPAT-BTCD.md)** - btcd 生态兼容策略
-
-## 🤝 兼容性
-
-### Go 版本支持
-
-- **最低要求**: Go 1.23+
-- **推荐版本**: Go 1.24+
-
-### 依赖库
-
-- **[btcsuite/btcd](https://github.com/btcsuite/btcd)** - 比特币协议实现
-- **标准库** - 无其他外部依赖
-
-### btcd 生态集成
-
-内部使用 btcd 库进行：
-
-- 交易编码/解码 (`wire`)
-- 脚本处理 (`txscript`)
-- 哈希计算 (`chainhash`)
-- 地址工具 (`btcutil`)
-
-公共 API 使用自定义类型，确保向前兼容。
-
-## 🛠️ 开发指南
-
-### 本地开发
-
-```bash
-# 克隆项目
 git clone https://github.com/crazycloudcc/btcapis.git
 cd btcapis
-
-# 安装依赖
+export GOCACHE=$PWD/.gocache
 go mod tidy
-
-# 运行测试
 go test ./...
-
-# 运行示例
-cd examples && go run main.go
+golangci-lint run   # requires local install
 ```
 
-### 代码质量
+Use `TestClient` (`btcapis_tests.go`) for integration tests against real bitcoindrpc/mempool/electrumx backends.
 
-```bash
-# 代码检查
-golangci-lint run
+## Documentation
 
-# 格式化代码
-gofmt -w .
+| File | Content |
+|------|---------|
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [docs/electrumx_quickstart.md](docs/electrumx_quickstart.md) | ElectrumX quickstart |
+| [docs/electrumx_implementation.md](docs/electrumx_implementation.md) | ElectrumX implementation |
+| [docs/2.bitcoin-core-rpc接口清单.txt](docs/2.bitcoin-core-rpc接口清单.txt) | Bitcoin Core RPC list |
+| [docs/3.mempool-space接口清单.txt](docs/3.mempool-space接口清单.txt) | mempool.space API list |
 
-# 模块整理
-go mod tidy
-```
+## Dependencies
 
-## 📄 许可证
+- [btcsuite/btcd](https://github.com/btcsuite/btcd) — tx/script/address primitives
+- [shopspring/decimal](https://github.com/shopspring/decimal) — decimal arithmetic
+- [sirupsen/logrus](https://github.com/sirupsen/logrus) — logging
 
-本项目采用 [MIT 许可证](LICENSE)。
+Public API uses custom `types/` structs, decoupled from btcd types.
 
-## 🌟 贡献
+## License
 
-欢迎贡献代码！请参考：
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
-
-## 📞 支持
-
-- **Issue 追踪**: [GitHub Issues](https://github.com/crazycloudcc/btcapis/issues)
-- **讨论区**: [GitHub Discussions](https://github.com/crazycloudcc/btcapis/discussions)
-
-## 🏷️ 版本历史
-
-当前版本基于 Go modules `go 1.23.0`，支持：
-
-- ✅ 完整的地址类型支持 (P2PKH, P2SH, P2WPKH, P2WSH, P2TR)
-- ✅ PSBT v0 工作流程
-- ✅ 多数据源架构 (Bitcoin Core + Mempool.space)
-- ✅ RBF (Replace-By-Fee) 支持
-- ✅ OP_RETURN 数据嵌入
-- ✅ 智能费率估算
-
----
-
-**BTCAPIs** - 构建现代比特币应用的可靠基础 🚀
+This project is licensed under the [MIT License](LICENSE).
