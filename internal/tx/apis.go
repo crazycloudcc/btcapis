@@ -2,6 +2,7 @@ package tx
 
 import (
 	"context"
+	"errors"
 
 	"github.com/crazycloudcc/btcapis/internal/decoders"
 	"github.com/crazycloudcc/btcapis/types"
@@ -44,7 +45,21 @@ func (c *Client) GetRawTx(ctx context.Context, txid string) ([]byte, error) {
 	return nil, err
 }
 
-// 按照types.Tx格式返回交易数据
+// GetTxVerbose 查询 verbose 格式交易（bitcoin core → mempool.space 降级）
+func (c *Client) GetTxVerbose(ctx context.Context, txid string, verbosity int) (*types.TxVerbose, error) {
+	if c.bitcoindrpcClient != nil {
+		tx, err := c.bitcoindrpcClient.TxGetVerbose(ctx, txid, verbosity)
+		if err == nil {
+			return tx, nil
+		}
+	}
+	if c.mempoolapisClient != nil {
+		return c.mempoolapisClient.TxGetVerbose(ctx, txid)
+	}
+	return nil, errors.New("btcapis: no client available")
+}
+
+// GetTx 按照 types.Tx 格式返回交易数据（wire 解码）
 func (c *Client) GetTx(ctx context.Context, txid string) (*types.Tx, error) {
 	raw, err := c.GetRawTx(ctx, txid)
 	if err != nil {

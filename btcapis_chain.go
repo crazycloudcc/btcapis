@@ -63,3 +63,59 @@ func (c *Client) EstimateFeeRate(ctx context.Context, targetBlocks int) (float64
 	}
 	return fees.High, fees.Low, nil
 }
+
+// GetNetworkInfo 获取节点网络信息
+func (c *Client) GetNetworkInfo(ctx context.Context) (*types.ChainNetworkInfo, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetNetworkInfo(ctx)
+}
+
+// GetBlockStats 获取区块统计
+func (c *Client) GetBlockStats(ctx context.Context) (*types.ChainStats, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlockStats(ctx)
+}
+
+// GetChainTips 获取链分叉信息
+func (c *Client) GetChainTips(ctx context.Context) ([]types.ChainTip, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetChainTips(ctx)
+}
+
+// GetBlockChainInfo 获取链状态
+func (c *Client) GetBlockChainInfo(ctx context.Context) (*types.BlockChainInfo, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlockChainInfo(ctx)
+}
+
+// GetBlockHeader 使用区块 hash 查询区块头
+func (c *Client) GetBlockHeader(ctx context.Context, blockHash string) (*types.BlockHeader, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlockHeader(ctx, blockHash)
+}
+
+// GetBlock 使用区块 hash 查询区块（verbosity=1）
+func (c *Client) GetBlock(ctx context.Context, blockHash string) (*types.Block, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlock(ctx, blockHash)
+}
+
+// GetBlockHashByHeight 使用区块高度查询 hash
+func (c *Client) GetBlockHashByHeight(ctx context.Context, height int64) (string, error) {
+	if c == nil || c.chainClient == nil {
+		return "", chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlockHashByHeight(ctx, height)
+}

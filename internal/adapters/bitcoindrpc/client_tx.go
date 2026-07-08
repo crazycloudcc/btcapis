@@ -5,18 +5,26 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+
+	"github.com/crazycloudcc/btcapis/types"
 )
 
-// 获取交易元数据
-// [可以修改decodeFlag获取json格式数据, 也可以使用decoderawtransaction(hex)解析raw数据]
-// 目前使用btcd库统一解析交易数据的hex.
-// decodeFlag: false-返回hex字符串; true-返回json;
+// 获取交易元数据（仅 decodeFlag=false 返回 raw bytes）
 func (c *Client) TxGetRaw(ctx context.Context, txid string, decodeFlag bool) ([]byte, error) {
 	var hexStr string
 	if err := c.rpcCall(ctx, "getrawtransaction", []any{txid, decodeFlag}, &hexStr); err != nil {
 		return nil, err
 	}
 	return hex.DecodeString(hexStr)
+}
+
+// TxGetVerbose 获取 verbose 格式交易（bitcoin core getrawtransaction）
+func (c *Client) TxGetVerbose(ctx context.Context, txid string, verbosity int) (*types.TxVerbose, error) {
+	var resp types.TxVerbose
+	if err := c.rpcCall(ctx, "getrawtransaction", []any{txid, verbosity}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 // 构建交易(taproot需要使用psbt)

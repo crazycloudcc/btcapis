@@ -42,6 +42,8 @@ type ChainInfoDTO struct {
 	Blocks               int     `json:"blocks"`               // 区块数
 	Headers              int     `json:"headers"`              // 头数
 	Bestblockhash        string  `json:"bestblockhash"`        // 最佳区块哈希
+	Bits                 string  `json:"bits"`                 // 难度位
+	Target               string  `json:"target"`               // 难度目标
 	Difficulty           float64 `json:"difficulty"`           // 难度
 	Time                 int     `json:"time"`                 // 时间
 	MedianTime           int     `json:"mediantime"`           // 中位时间
@@ -123,6 +125,15 @@ func (c *Client) GetBlockStats(ctx context.Context, height int64) (*BlockStatsDT
 		return nil, fmt.Errorf("getblockstats: %w", err)
 	}
 
+	return res, nil
+}
+
+// GetBlockStatsDefault 获取默认区块统计（与 apis 历史行为一致：无高度参数）
+func (c *Client) GetBlockStatsDefault(ctx context.Context) (*BlockStatsDTO, error) {
+	var res *BlockStatsDTO
+	if err := c.rpcCall(ctx, "getblockstats", []any{}, &res); err != nil {
+		return nil, fmt.Errorf("getblockstats: %w", err)
+	}
 	return res, nil
 }
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0 (2026-07-08)
+
+### Added
+- 链 RPC 公开 API：`GetNetworkInfo` / `GetBlockStats` / `GetChainTips` / `GetBlockChainInfo` / `GetBlockHeader` / `GetBlock` / `GetBlockHashByHeight`
+- 地址 orchestration：`GetAddressBalanceSatsWithOptions` / `GetAddressUTXOsWithOptions` / `BatchGetAddressBalanceSats` / `GetAddressHistoryTxs` / `GetAddressUnconfirmedTxs`
+- mempool.space 公开 API：`GetMempoolStats` / `GetMempoolTxStatus` / `GetMempoolFeesRecommend`
+- 交易：`GetTxVerbose` / `TestMempoolAccept` / `GetMempoolTxIds` / `GetMempoolTxEntry` / `ValidateAddress`
+- `types.ElectrumXAddressProvider`：支持 apis TCP ElectrumX 注入
+
+### Changed
+- apis / schedulers 链通用能力委托至本库；本地重复 RPC 实现已清理
+
 ## v0.3.0 (2026-07-07)
 
 ### Added

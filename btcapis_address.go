@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crazycloudcc/btcapis/internal/chain"
 	"github.com/crazycloudcc/btcapis/types"
 )
 
@@ -51,4 +52,48 @@ func (c *Client) FilterAddressesWithBalanceWithElectrumX(ctx context.Context, ad
 // 批量查询所有地址余额
 func (c *Client) BatchGetBalancesWithElectrumX(ctx context.Context, addresses []string, concurrent int) ([]types.AddressBalanceInfo, error) {
 	return c.addressClient.BatchGetBalancesWithElectrumX(ctx, addresses, concurrent)
+}
+
+// ValidateAddress 校验比特币地址（bitcoin core validateaddress）
+func (c *Client) ValidateAddress(ctx context.Context, addr string) (*types.AddressValidation, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.ValidateAddress(ctx, addr)
+}
+
+// GetAddressBalanceSats 通过 mempool.space 获取地址余额（聪）
+func (c *Client) GetAddressBalanceSats(ctx context.Context, addr string) (*types.AddressBalanceSats, error) {
+	confirmed, unconfirmed, err := c.GetAddressBalance(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	total := confirmed + unconfirmed
+	return &types.AddressBalanceSats{
+		Confirmed:   confirmed,
+		Unconfirmed: unconfirmed,
+		Total:       total,
+		Address:     addr,
+	}, nil
+}
+
+// GetAddressUTXOsForAddress 通过 mempool.space 获取地址 UTXO
+func (c *Client) GetAddressUTXOsForAddress(ctx context.Context, addr string) ([]types.AddressUTXO, error) {
+	utxos, err := c.GetAddressUTXOs(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.AddressUTXO, 0, len(utxos))
+	for _, u := range utxos {
+		txid := u.OutPoint.Hash.String()
+		out = append(out, types.AddressUTXO{
+			Value:       u.Value,
+			TxId:        txid,
+			Vout:        u.OutPoint.Index,
+			Height:      int64(u.Height),
+			Confirmed:   u.Height > 0,
+			BlockHeight: int64(u.Height),
+		})
+	}
+	return out, nil
 }

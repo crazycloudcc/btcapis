@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/crazycloudcc/btcapis/types"
 )
 
 // 获取交易的原始数据，返回二进制格式
@@ -19,6 +21,17 @@ func (c *Client) TxGetRaw(ctx context.Context, txid string) ([]byte, error) {
 		return nil, err
 	}
 	return hex.DecodeString(strings.TrimSpace(string(b)))
+}
+
+// TxGetVerbose 获取 verbose 格式交易（mempool.space /api/tx/{txid}）
+func (c *Client) TxGetVerbose(ctx context.Context, txid string) (*types.TxVerbose, error) {
+	u := *c.base
+	u.Path = path.Join(u.Path, "/api/tx/", txid)
+	var resp types.TxVerbose
+	if err := c.getJSON(ctx, u.String(), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 // 广播交易，返回交易ID
