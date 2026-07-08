@@ -9,12 +9,23 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+// DefaultFeesProviderOptions 默认费率 Provider 选项
+type DefaultFeesProviderOptions struct {
+	// ElectrumX 可选自定义实现（如 TCP ElectrumX），优先于内置 HTTP ElectrumX
+	ElectrumX types.ChainFeesEstimator
+}
+
 // EstimateChainFees 使用默认节点 Provider 链估算手续费（mempool.space → electrumX → bitcoin core）
 func (c *Client) EstimateChainFees(ctx context.Context, targetBlocks int64) (*types.ChainFees, error) {
+	return c.EstimateChainFeesWithOptions(ctx, targetBlocks, DefaultFeesProviderOptions{})
+}
+
+// EstimateChainFeesWithOptions 使用默认 Provider 链估算手续费，支持自定义 ElectrumX
+func (c *Client) EstimateChainFeesWithOptions(ctx context.Context, targetBlocks int64, opts DefaultFeesProviderOptions) (*types.ChainFees, error) {
 	if c == nil || c.chainClient == nil {
 		return nil, chain.ErrProviderUnavailable
 	}
-	return c.chainClient.EstimateChainFeesDefault(ctx, targetBlocks)
+	return c.chainClient.EstimateChainFeesDefault(ctx, targetBlocks, opts.ElectrumX)
 }
 
 // EstimateChainFeesWithProviders 自定义 Provider 顺序
@@ -29,6 +40,8 @@ func (c *Client) EstimateChainFeesWithProviders(ctx context.Context, targetBlock
 type APIFeesProviderOptions struct {
 	Unisat *unisat.Client
 	OKX    *okx.Client
+	// ElectrumX 可选自定义实现（如 TCP ElectrumX），优先于内置 HTTP ElectrumX
+	ElectrumX types.ChainFeesEstimator
 }
 
 // EstimateChainFeesForAPI 使用 apis 完整降级链估算手续费
@@ -38,7 +51,7 @@ func (c *Client) EstimateChainFeesForAPI(ctx context.Context, targetBlocks int64
 		return nil, chain.ErrProviderUnavailable
 	}
 	clients := c.chainClient.NewFeesClients()
-	providers := chain.APIFeesProviders(clients.Mempool, opts.Unisat, opts.OKX, clients.Electrum, clients.Bitcoind)
+	providers := chain.APIFeesProviders(clients.Mempool, opts.Unisat, opts.OKX, clients.Electrum, clients.Bitcoind, opts.ElectrumX)
 	return c.chainClient.EstimateChainFeesWithProviders(ctx, targetBlocks, providers)
 }
 

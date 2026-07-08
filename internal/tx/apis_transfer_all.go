@@ -237,7 +237,7 @@ func (c *Client) getAddressUTXOs(ctx context.Context, address string) ([]bitcoin
 // estimateFeeRate 估算费率（sat/vB）
 func (c *Client) estimateFeeRate(ctx context.Context) (float64, error) {
 	chainClient := chain.New(c.bitcoindrpcClient, c.mempoolapisClient, c.electrumxClient)
-	fees, err := chainClient.EstimateChainFeesDefault(ctx, 6)
+	fees, err := chainClient.EstimateChainFeesDefault(ctx, 6, nil)
 	if err != nil {
 		return 0, err
 	}

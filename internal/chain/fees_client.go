@@ -23,9 +23,9 @@ func (c *Client) NewFeesClients() FeesClients {
 }
 
 // EstimateChainFeesDefault 使用默认 Provider 链估算费率
-func (c *Client) EstimateChainFeesDefault(ctx context.Context, targetBlocks int64) (*types.ChainFees, error) {
+func (c *Client) EstimateChainFeesDefault(ctx context.Context, targetBlocks int64, electrumOverride types.ChainFeesEstimator) (*types.ChainFees, error) {
 	clients := c.NewFeesClients()
-	return EstimateChainFees(ctx, targetBlocks, DefaultFeesProviders(clients.Mempool, clients.Electrum, clients.Bitcoind))
+	return EstimateChainFees(ctx, targetBlocks, DefaultFeesProviders(clients.Mempool, clients.Electrum, clients.Bitcoind, electrumOverride))
 }
 
 // EstimateChainFeesWithProviders 自定义 Provider 顺序

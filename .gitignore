@@ -60,3 +60,4 @@ coverage.html
 go.sum
 
 examples/env.json
+/.gocache

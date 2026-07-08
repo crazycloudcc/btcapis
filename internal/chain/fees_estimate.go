@@ -45,13 +45,18 @@ func EstimateChainFees(ctx context.Context, targetBlocks int64, providers []Fees
 }
 
 // DefaultFeesProviders 默认节点 Provider：mempool.space → electrumX → bitcoin core
-func DefaultFeesProviders(mempool *MempoolFeesProvider, electrum *ElectrumXFeesProvider, bitcoind *BitcoindFeesProvider) []FeesProvider {
+func DefaultFeesProviders(
+	mempool *MempoolFeesProvider,
+	electrum *ElectrumXFeesProvider,
+	bitcoind *BitcoindFeesProvider,
+	electrumOverride types.ChainFeesEstimator,
+) []FeesProvider {
 	providers := make([]FeesProvider, 0, 3)
 	if mempool != nil && mempool.Client != nil {
 		providers = append(providers, mempool)
 	}
-	if electrum != nil && electrum.Client != nil {
-		providers = append(providers, electrum)
+	if ep := electrumFeesProvider(electrum, electrumOverride); ep != nil {
+		providers = append(providers, ep)
 	}
 	if bitcoind != nil && bitcoind.Client != nil {
 		providers = append(providers, bitcoind)
@@ -66,6 +71,7 @@ func APIFeesProviders(
 	okx RecommendedFeesProvider,
 	electrum *ElectrumXFeesProvider,
 	bitcoind *BitcoindFeesProvider,
+	electrumOverride types.ChainFeesEstimator,
 ) []FeesProvider {
 	providers := make([]FeesProvider, 0, 5)
 	if mempool != nil && mempool.Client != nil {
@@ -77,8 +83,8 @@ func APIFeesProviders(
 	if okx != nil {
 		providers = append(providers, RecommendedFeesAdapter{Provider: okx})
 	}
-	if electrum != nil && electrum.Client != nil {
-		providers = append(providers, electrum)
+	if ep := electrumFeesProvider(electrum, electrumOverride); ep != nil {
+		providers = append(providers, ep)
 	}
 	if bitcoind != nil && bitcoind.Client != nil {
 		providers = append(providers, bitcoind)
