@@ -33,26 +33,26 @@ type NetworkInfoDTO struct {
 		Port    int    `json:"port"`    // 端口
 		Score   int    `json:"score"`   // 分数
 	} `json:"localaddresses"` // 本地地址列表
-	Warnings string `json:"warnings"` // 警告
+	Warnings RPCWarnings `json:"warnings"` // 警告（Core <28 string，>=28 []string）
 }
 
 // 链信息数据结构
 type ChainInfoDTO struct {
-	Chain                string  `json:"chain"`                // 链
-	Blocks               int     `json:"blocks"`               // 区块数
-	Headers              int     `json:"headers"`              // 头数
-	Bestblockhash        string  `json:"bestblockhash"`        // 最佳区块哈希
-	Bits                 string  `json:"bits"`                 // 难度位
-	Target               string  `json:"target"`               // 难度目标
-	Difficulty           float64 `json:"difficulty"`           // 难度
-	Time                 int     `json:"time"`                 // 时间
-	MedianTime           int     `json:"mediantime"`           // 中位时间
-	Verificationprogress float64 `json:"verificationprogress"` // 验证进度
-	Initialblockdownload bool    `json:"initialblockdownload"` // 初始区块下载
-	Chainwork            string  `json:"chainwork"`            // 链工作量
-	Sizeondisk           int     `json:"size_on_disk"`         // 磁盘大小
-	Pruned               bool    `json:"pruned"`               // 是否修剪
-	Warnings             string  `json:"warnings"`             // 警告列表
+	Chain                string      `json:"chain"`                // 链
+	Blocks               int         `json:"blocks"`               // 区块数
+	Headers              int         `json:"headers"`              // 头数
+	Bestblockhash        string      `json:"bestblockhash"`        // 最佳区块哈希
+	Bits                 string      `json:"bits"`                 // 难度位
+	Target               string      `json:"target"`               // 难度目标
+	Difficulty           float64     `json:"difficulty"`           // 难度
+	Time                 int         `json:"time"`                 // 时间
+	MedianTime           int         `json:"mediantime"`           // 中位时间
+	Verificationprogress float64     `json:"verificationprogress"` // 验证进度
+	Initialblockdownload bool        `json:"initialblockdownload"` // 初始区块下载
+	Chainwork            string      `json:"chainwork"`            // 链工作量
+	Sizeondisk           int         `json:"size_on_disk"`         // 磁盘大小
+	Pruned               bool        `json:"pruned"`               // 是否修剪
+	Warnings             RPCWarnings `json:"warnings"`             // 警告（Core <28 string，>=28 []string）
 }
 
 // 区块统计信息数据结构

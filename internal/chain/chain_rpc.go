@@ -168,8 +168,8 @@ func networkInfoFromDTO(dto *bitcoindrpc.NetworkInfoDTO) *types.ChainNetworkInfo
 		localAddrs = append(localAddrs, fmt.Sprintf("%s:%d", la.Address, la.Port))
 	}
 	var warnings any
-	if dto.Warnings != "" {
-		warnings = dto.Warnings
+	if dto.Warnings != nil {
+		warnings = dto.Warnings.AsAny()
 	}
 	return &types.ChainNetworkInfo{
 		Version:            int64(dto.Version),
@@ -252,8 +252,8 @@ func blockChainInfoFromDTO(dto *bitcoindrpc.ChainInfoDTO) *types.BlockChainInfo 
 		return nil
 	}
 	var warnings any
-	if dto.Warnings != "" {
-		warnings = dto.Warnings
+	if dto.Warnings != nil {
+		warnings = dto.Warnings.AsAny()
 	}
 	return &types.BlockChainInfo{
 		Chain:                dto.Chain,
