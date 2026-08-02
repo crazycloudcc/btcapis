@@ -86,3 +86,12 @@ func (c *Client) ChainGetBlock(ctx context.Context, hash string) (*BlockDTO, err
 	}
 	return dto, nil
 }
+
+// ChainGetBlockTransactions 使用 verbosity=2 获取完整有序交易，并仅解码聚合所需字段。
+func (c *Client) ChainGetBlockTransactions(ctx context.Context, hash string) (*BlockTransactionsDTO, error) {
+	var dto *BlockTransactionsDTO
+	if err := c.rpcCall(ctx, "getblock", []any{hash, 2}, &dto); err != nil {
+		return nil, err
+	}
+	return dto, nil
+}

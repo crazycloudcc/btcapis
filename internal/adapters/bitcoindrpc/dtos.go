@@ -1,6 +1,8 @@
 // rpc原生数据结构定义
 package bitcoindrpc
 
+import "github.com/shopspring/decimal"
+
 // UTXO数据结构
 type UTXODTO struct {
 	TxID         string  `json:"txid"`         // 交易ID
@@ -66,6 +68,29 @@ type BlockDTO struct {
 	Size              int      `json:"size"`              // 大小
 	Weight            int      `json:"weight"`            // 权重
 	Tx                []string `json:"tx"`                // 交易
+}
+
+// BlockTransactionsDTO 是 getblock verbosity=2 的最小内部响应结构。
+type BlockTransactionsDTO struct {
+	Hash   string                `json:"hash"`
+	Height int64                 `json:"height"`
+	Time   int64                 `json:"time"`
+	Size   int64                 `json:"size"`
+	Weight int64                 `json:"weight"`
+	NTx    int64                 `json:"nTx"`
+	Tx     []BlockTransactionDTO `json:"tx"`
+}
+
+type BlockTransactionDTO struct {
+	TxID   string                     `json:"txid"`
+	VSize  int64                      `json:"vsize"`
+	Weight int64                      `json:"weight"`
+	Fee    *decimal.Decimal           `json:"fee"`
+	Vin    []BlockTransactionInputDTO `json:"vin"`
+}
+
+type BlockTransactionInputDTO struct {
+	Coinbase string `json:"coinbase"`
 }
 
 // 地址信息数据结构

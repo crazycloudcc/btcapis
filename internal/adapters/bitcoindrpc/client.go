@@ -14,11 +14,20 @@ import (
 )
 
 type Client struct {
-	url    string
-	user   string
-	pass   string
-	http   *http.Client
-	idSeed int
+	url  string
+	user string
+	pass string
+	http *http.Client
+}
+
+// RPCError 是 Bitcoin Core 返回的 JSON-RPC 错误。
+type RPCError struct {
+	Code    int
+	Message string
+}
+
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("bitcoind rpc error %d: %s", e.Code, e.Message)
 }
 
 func New(url, user, pass string, timeout int) *Client {
@@ -32,10 +41,9 @@ func New(url, user, pass string, timeout int) *Client {
 
 func (c *Client) rpcCall(ctx context.Context, method string, params []any, out any) error {
 	// startTime := time.Now()
-	c.idSeed++
 
 	// 记录请求开始
-	// logger.Debug("[DEBUG] Bitcoin RPC 请求开始 - Method: %s, ID: %d, Params: %+v", method, c.idSeed, params)
+	// logger.Debug("[DEBUG] Bitcoin RPC 请求开始 - Method: %s, Params: %+v", method, params)
 
 	req := struct {
 		JSONRPC string `json:"jsonrpc"`
@@ -44,7 +52,7 @@ func (c *Client) rpcCall(ctx context.Context, method string, params []any, out a
 		Params  []any  `json:"params"`
 	}{
 		JSONRPC: "2.0",
-		ID:      c.idSeed,
+		ID:      1,
 		Method:  method,
 		Params:  params,
 	}
@@ -113,7 +121,7 @@ func (c *Client) rpcCall(ctx context.Context, method string, params []any, out a
 	if rpcResp.Error != nil {
 		logger.Error("[ERROR] Bitcoin RPC 错误 - Code: %d, Message: %s",
 			rpcResp.Error.Code, rpcResp.Error.Message)
-		return fmt.Errorf("bitcoind rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+		return &RPCError{Code: rpcResp.Error.Code, Message: rpcResp.Error.Message}
 	}
 
 	if out != nil {
@@ -133,10 +141,9 @@ func (c *Client) rpcCall(ctx context.Context, method string, params []any, out a
 // createrawtransaction接口必须使用any, 不能使用[]any.
 func (c *Client) rpcCallWithAny(ctx context.Context, method string, params any, out any) error {
 	// startTime := time.Now()
-	c.idSeed++
 
 	// 记录请求开始
-	// logger.Debug("[DEBUG] Bitcoin RPC 请求开始 - Method: %s, ID: %d, Params: %+v", method, c.idSeed, params)
+	// logger.Debug("[DEBUG] Bitcoin RPC 请求开始 - Method: %s, Params: %+v", method, params)
 
 	req := struct {
 		JSONRPC string `json:"jsonrpc"`
@@ -145,7 +152,7 @@ func (c *Client) rpcCallWithAny(ctx context.Context, method string, params any, 
 		Params  any    `json:"params"`
 	}{
 		JSONRPC: "1.0",
-		ID:      c.idSeed,
+		ID:      1,
 		Method:  method,
 		Params:  params,
 	}
@@ -214,7 +221,7 @@ func (c *Client) rpcCallWithAny(ctx context.Context, method string, params any, 
 	if rpcResp.Error != nil {
 		logger.Error("[ERROR] Bitcoin RPC 错误 - Code: %d, Message: %s",
 			rpcResp.Error.Code, rpcResp.Error.Message)
-		return fmt.Errorf("bitcoind rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+		return &RPCError{Code: rpcResp.Error.Code, Message: rpcResp.Error.Message}
 	}
 
 	if out != nil {

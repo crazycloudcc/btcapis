@@ -2,22 +2,22 @@ package types
 
 // ChainNetworkInfo 节点网络信息（getnetworkinfo）
 type ChainNetworkInfo struct {
-	Version            int64                `json:"version"`
-	Subversion         string               `json:"subversion"`
-	ProtocolVersion    int64                `json:"protocolversion"`
-	LocalServices      string               `json:"localservices"`
-	LocalServicesNames []string             `json:"localservicesnames"`
-	LocalRelay         bool                 `json:"localrelay"`
-	TimeOffset         int64                `json:"timeoffset"`
-	NetworkActive      bool                 `json:"networkactive"`
-	Connections        int64                `json:"connections"`
-	ConnectionsIn      int64                `json:"connections_in"`
-	ConnectionsOut     int64                `json:"connections_out"`
-	Networks           []ChainNetworkMeta   `json:"networks"`
-	RelayFee           float64              `json:"relayfee"`
-	IncrementalFee     float64              `json:"incrementalfee"`
-	LocalAddresses     []string             `json:"localaddresses"`
-	Warnings           any                  `json:"warnings"`
+	Version            int64              `json:"version"`
+	Subversion         string             `json:"subversion"`
+	ProtocolVersion    int64              `json:"protocolversion"`
+	LocalServices      string             `json:"localservices"`
+	LocalServicesNames []string           `json:"localservicesnames"`
+	LocalRelay         bool               `json:"localrelay"`
+	TimeOffset         int64              `json:"timeoffset"`
+	NetworkActive      bool               `json:"networkactive"`
+	Connections        int64              `json:"connections"`
+	ConnectionsIn      int64              `json:"connections_in"`
+	ConnectionsOut     int64              `json:"connections_out"`
+	Networks           []ChainNetworkMeta `json:"networks"`
+	RelayFee           float64            `json:"relayfee"`
+	IncrementalFee     float64            `json:"incrementalfee"`
+	LocalAddresses     []string           `json:"localaddresses"`
+	Warnings           any                `json:"warnings"`
 }
 
 // ChainNetworkMeta 网络元信息
@@ -118,6 +118,26 @@ type Block struct {
 	Size         int64    `json:"size"`
 	Weight       int64    `json:"weight"`
 	Tx           []string `json:"tx"`
+}
+
+// BlockTransactions 是 getblock verbosity=2 的紧凑有序交易结果。
+type BlockTransactions struct {
+	Height       int64              `json:"height"`
+	BlockHash    string             `json:"block_hash"`
+	Time         int64              `json:"time"`
+	Size         int64              `json:"size"`
+	Weight       int64              `json:"weight"`
+	TxCount      int64              `json:"tx_count"`
+	Transactions []BlockTransaction `json:"transactions"`
+}
+
+// BlockTransaction 只保留区块聚合需要的交易字段。
+type BlockTransaction struct {
+	TxID     string `json:"txid"`
+	VSize    int64  `json:"vsize"`
+	Weight   int64  `json:"weight"`
+	FeeSats  int64  `json:"fee_sats"`
+	Coinbase bool   `json:"coinbase"`
 }
 
 // AddressValidation 地址校验（validateaddress）

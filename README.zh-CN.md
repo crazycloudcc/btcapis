@@ -7,13 +7,13 @@
 
 Go 语言比特币链上操作库，面向 [chainbox](https://github.com/chainboxapp) 等上层服务。提供地址查询、交易构建/广播、PSBT、链 RPC、mempool 查询、费率估算与脚本解析，支持 Bitcoin Core RPC、mempool.space、ElectrumX 多数据源降级。
 
-当前版本：**v0.4.0**（详见 [CHANGELOG.md](CHANGELOG.md)）
+当前版本：**v0.5.0**（详见 [CHANGELOG.md](CHANGELOG.md)）
 
 ## 特性
 
 - **地址**：余额/UTXO 查询、地址校验、钱包生成；支持 ElectrumX 批量查询与自定义 Provider 注入
 - **交易**：原始交易查询、verbose 交易、mempool 预检、PSBT v0 创建/校验/广播
-- **链 RPC**：网络信息、链状态、区块头/区块、按高度查 hash
+- **链 RPC**：网络信息、链状态、区块头/区块、按高度查 hash、verbosity 2 紧凑有序交易
 - **费率**：统一 `types.ChainFees`（sat/vB）；默认降级链 + apis 扩展链（unisat/okx）
 - **Mempool**：统计、交易状态、推荐费率、内存池 txid/entry
 - **脚本/解码**：地址↔脚本互转、ASM 解析、原始交易解码
@@ -22,7 +22,7 @@ Go 语言比特币链上操作库，面向 [chainbox](https://github.com/chainbo
 ## 安装
 
 ```bash
-go get github.com/crazycloudcc/btcapis@v0.4.0
+go get github.com/crazycloudcc/btcapis@v0.5.0
 ```
 
 ## 快速开始
@@ -188,6 +188,7 @@ high, low, err := client.EstimateFeeRate(ctx, 6)
 | `GetNetworkInfo` / `GetBlockChainInfo` | 节点/链状态 |
 | `GetBlockStats` / `GetChainTips` | 区块统计/分叉信息 |
 | `GetBlockHeader` / `GetBlock` | 区块头/区块（verbosity=1） |
+| `GetBlockTransactions` | 紧凑有序交易（verbosity=2，精确 fee sats） |
 | `GetBlockHashByHeight` | 按高度查区块 hash |
 
 ### Mempool `btcapis_mempool.go`

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.0 (2026-08-03)
+
+### Added
+- `Client.GetBlockTransactions`：固定调用 Bitcoin Core `getblock(hash, 2)`，返回紧凑有序交易与精确 `fee_sats`
+- `types.BlockTransactions` / `types.BlockTransaction`
+- `ErrBlockNotFound` / `ErrInvalidBlockData` 类型化错误
+
+### Fixed
+- Bitcoin Core JSON-RPC 请求改用固定 ID，移除并发调用的数据竞争
+- 非 coinbase 缺失手续费、fractional sat、负数与 int64 溢出不再进入成功结果
+
 ## v0.4.0 (2026-07-08)
 
 ### Added

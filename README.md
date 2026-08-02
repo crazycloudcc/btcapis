@@ -7,13 +7,13 @@
 
 A Go library for Bitcoin on-chain operations, used by services such as [chainbox](https://github.com/chainboxapp). It covers address queries, transaction build/broadcast, PSBT, chain RPC, mempool queries, fee estimation, and script parsing — with multi-source fallback across Bitcoin Core RPC, mempool.space, and ElectrumX.
 
-Current version: **v0.4.0** (see [CHANGELOG.md](CHANGELOG.md))
+Current version: **v0.5.0** (see [CHANGELOG.md](CHANGELOG.md))
 
 ## Features
 
 - **Address**: balance/UTXO queries, validation, wallet generation; ElectrumX batch queries and custom Provider injection
 - **Transaction**: raw/verbose tx queries, mempool pre-check, PSBT v0 create/validate/broadcast
-- **Chain RPC**: network info, chain state, block header/block, hash by height
+- **Chain RPC**: network info, chain state, block header/block, hash by height, compact ordered verbosity-2 transactions
 - **Fees**: unified `types.ChainFees` (sat/vB); default fallback chain + API chain (unisat/okx)
 - **Mempool**: stats, tx status, recommended fees, mempool txid/entry
 - **Script/Decode**: address↔script conversion, ASM parsing, raw tx decoding
@@ -22,7 +22,7 @@ Current version: **v0.4.0** (see [CHANGELOG.md](CHANGELOG.md))
 ## Install
 
 ```bash
-go get github.com/crazycloudcc/btcapis@v0.4.0
+go get github.com/crazycloudcc/btcapis@v0.5.0
 ```
 
 ## Quick Start
@@ -188,6 +188,7 @@ high, low, err := client.EstimateFeeRate(ctx, 6)
 | `GetNetworkInfo` / `GetBlockChainInfo` | Node/chain state |
 | `GetBlockStats` / `GetChainTips` | Block stats/fork tips |
 | `GetBlockHeader` / `GetBlock` | Block header/block (verbosity=1) |
+| `GetBlockTransactions` | Compact ordered transactions (verbosity=2, exact fee sats) |
 | `GetBlockHashByHeight` | Block hash by height |
 
 ### Mempool — `btcapis_mempool.go`

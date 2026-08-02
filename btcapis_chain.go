@@ -9,6 +9,11 @@ import (
 	"github.com/crazycloudcc/btcapis/types"
 )
 
+var (
+	ErrBlockNotFound    = chain.ErrBlockNotFound
+	ErrInvalidBlockData = chain.ErrInvalidBlockData
+)
+
 // DefaultFeesProviderOptions 默认费率 Provider 选项
 type DefaultFeesProviderOptions struct {
 	// ElectrumX 可选自定义实现（如 TCP ElectrumX），优先于内置 HTTP ElectrumX
@@ -110,6 +115,14 @@ func (c *Client) GetBlock(ctx context.Context, blockHash string) (*types.Block, 
 		return nil, chain.ErrBitcoindUnavailable
 	}
 	return c.chainClient.GetBlock(ctx, blockHash)
+}
+
+// GetBlockTransactions 使用区块 hash 查询紧凑有序交易（verbosity=2）。
+func (c *Client) GetBlockTransactions(ctx context.Context, blockHash string) (*types.BlockTransactions, error) {
+	if c == nil || c.chainClient == nil {
+		return nil, chain.ErrBitcoindUnavailable
+	}
+	return c.chainClient.GetBlockTransactions(ctx, blockHash)
 }
 
 // GetBlockHashByHeight 使用区块高度查询 hash

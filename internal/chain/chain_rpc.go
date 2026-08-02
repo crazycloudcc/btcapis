@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/crazycloudcc/btcapis/internal/adapters/bitcoindrpc"
 	"github.com/crazycloudcc/btcapis/types"
+	"github.com/shopspring/decimal"
 )
 
-var ErrBitcoindUnavailable = errors.New("bitcoind rpc unavailable")
+var (
+	ErrBitcoindUnavailable = errors.New("bitcoind rpc unavailable")
+	ErrBlockNotFound       = errors.New("block not found")
+	ErrInvalidBlockData    = errors.New("invalid block data")
+)
 
 func (c *Client) requireBitcoind() (*bitcoindrpc.Client, error) {
 	if c == nil || c.bitcoindrpcClient == nil {
@@ -96,13 +102,91 @@ func (c *Client) GetBlock(ctx context.Context, blockHash string) (*types.Block, 
 	return blockFromDTO(dto), nil
 }
 
+// GetBlockTransactions 使用 verbosity=2 获取紧凑有序交易数据。
+func (c *Client) GetBlockTransactions(ctx context.Context, blockHash string) (*types.BlockTransactions, error) {
+	rpc, err := c.requireBitcoind()
+	if err != nil {
+		return nil, err
+	}
+	dto, err := rpc.ChainGetBlockTransactions(ctx, blockHash)
+	if err != nil {
+		var rpcErr *bitcoindrpc.RPCError
+		if errors.As(err, &rpcErr) && rpcErr.Code == -5 {
+			return nil, fmt.Errorf("%w: %w", ErrBlockNotFound, err)
+		}
+		return nil, err
+	}
+	return blockTransactionsFromDTO(dto)
+}
+
 // GetBlockHashByHeight 使用区块高度查询 hash
 func (c *Client) GetBlockHashByHeight(ctx context.Context, height int64) (string, error) {
 	rpc, err := c.requireBitcoind()
 	if err != nil {
 		return "", err
 	}
-	return rpc.ChainGetBlockHash(ctx, height)
+	hash, err := rpc.ChainGetBlockHash(ctx, height)
+	if err != nil {
+		var rpcErr *bitcoindrpc.RPCError
+		if errors.As(err, &rpcErr) && (rpcErr.Code == -5 || rpcErr.Code == -8) {
+			return "", fmt.Errorf("%w: %w", ErrBlockNotFound, err)
+		}
+		return "", err
+	}
+	return hash, nil
+}
+
+func blockTransactionsFromDTO(dto *bitcoindrpc.BlockTransactionsDTO) (*types.BlockTransactions, error) {
+	if dto == nil {
+		return nil, fmt.Errorf("%w: empty block", ErrInvalidBlockData)
+	}
+	if dto.NTx < 1 || dto.NTx != int64(len(dto.Tx)) {
+		return nil, fmt.Errorf("%w: nTx=%d transactions=%d", ErrInvalidBlockData, dto.NTx, len(dto.Tx))
+	}
+
+	transactions := make([]types.BlockTransaction, len(dto.Tx))
+	satsPerBTC := decimal.NewFromInt(100_000_000)
+	maxSats := decimal.NewFromInt(math.MaxInt64)
+	for i, tx := range dto.Tx {
+		coinbase := len(tx.Vin) == 1 && tx.Vin[0].Coinbase != ""
+		if coinbase != (i == 0) {
+			return nil, fmt.Errorf("%w: transaction %d coinbase position", ErrInvalidBlockData, i)
+		}
+
+		feeSats := int64(0)
+		if coinbase {
+			if tx.Fee != nil && !tx.Fee.IsZero() {
+				return nil, fmt.Errorf("%w: coinbase fee is not zero", ErrInvalidBlockData)
+			}
+		} else {
+			if tx.Fee == nil {
+				return nil, fmt.Errorf("%w: transaction %d fee missing", ErrInvalidBlockData, i)
+			}
+			sats := tx.Fee.Mul(satsPerBTC)
+			if sats.IsNegative() || !sats.Equal(sats.Truncate(0)) || sats.GreaterThan(maxSats) {
+				return nil, fmt.Errorf("%w: transaction %d fee is not valid sats", ErrInvalidBlockData, i)
+			}
+			feeSats = sats.IntPart()
+		}
+
+		transactions[i] = types.BlockTransaction{
+			TxID:     tx.TxID,
+			VSize:    tx.VSize,
+			Weight:   tx.Weight,
+			FeeSats:  feeSats,
+			Coinbase: coinbase,
+		}
+	}
+
+	return &types.BlockTransactions{
+		Height:       dto.Height,
+		BlockHash:    dto.Hash,
+		Time:         dto.Time,
+		Size:         dto.Size,
+		Weight:       dto.Weight,
+		TxCount:      dto.NTx,
+		Transactions: transactions,
+	}, nil
 }
 
 // ValidateAddress 校验地址
